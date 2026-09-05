@@ -103,13 +103,19 @@
     letter-spacing: 0.2px;
     display: flex; align-items: center; justify-content: space-between;
   }
-  #theme-toggle {
+  .header-btn-group { display: flex; align-items: center; gap: 6px; }
+  #home-btn, #prefs-btn {
     background: none; border: 1px solid var(--rule); border-radius: 100px;
     width: 28px; height: 28px; font-size: 14px; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     color: var(--ink);
   }
-  #theme-toggle:hover { background: var(--link-bg); }
+  .title-group { display: flex; align-items: baseline; }
+  #app-version {
+    font-size: 10.5px; font-weight: 400; color: var(--graphite);
+    margin-left: 6px; letter-spacing: 0;
+  }
+  #home-btn:hover, #prefs-btn:hover { background: var(--link-bg); }
   #search {
     width: 100%; padding: 8px 10px;
     border: 1px solid var(--rule); border-radius: 6px;
@@ -203,18 +209,30 @@
     opacity: 0.55; padding: 0 2px; border-radius: 4px; font-size: 12px; line-height: 1;
   }
   .folder-chip-menu-btn:hover { opacity: 1; background: rgba(0,0,0,0.1); }
-  #folder-actions-popover {
+  #folder-actions-popover, #layout-menu {
     position: fixed; z-index: 60;
     background: var(--card); border: 1px solid var(--rule); border-radius: 8px;
     box-shadow: 0 6px 18px rgba(0,0,0,0.25);
-    padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 160px;
+    padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 180px;
   }
-  #folder-actions-popover button {
+  #folder-actions-popover button, #layout-menu button {
     text-align: left; padding: 6px 8px; border-radius: 6px; font-size: 12.5px;
     background: transparent; border: none; color: var(--ink); cursor: pointer;
   }
-  #folder-actions-popover button:hover { background: var(--paper); }
+  #folder-actions-popover button:hover, #layout-menu button:hover { background: var(--paper); }
   #folder-actions-popover button.danger { color: #d1453b; }
+  #table-popover {
+    position: fixed; z-index: 60;
+    background: var(--card); border: 1px solid var(--rule); border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+    padding: 10px; display: flex; flex-direction: column; gap: 10px; min-width: 200px;
+  }
+  #table-popover .table-popover-row { display: flex; gap: 10px; }
+  #table-popover label { font-size: 11.5px; color: var(--graphite); display: flex; flex-direction: column; gap: 4px; }
+  #table-popover input {
+    width: 60px; border: 1px solid var(--rule); border-radius: 6px; padding: 5px 7px;
+    font-family: inherit; font-size: 13px; background: var(--paper); color: var(--ink);
+  }
 
   /* Color / folder popovers */
   #color-popover, #folder-popover {
@@ -255,14 +273,30 @@
   #update-toast .t { font-weight: 700; margin-bottom: 4px; }
   #update-toast .n { color: var(--graphite); font-size: 12px; max-height: 80px; overflow-y: auto; }
   #update-toast .actions { margin-top: 10px; display: flex; gap: 8px; }
+  #message-toast {
+    position: fixed; right: 18px; bottom: 18px; z-index: 90;
+    background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
+    padding: 12px 14px; box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+    max-width: 280px; font-size: 13px;
+  }
+  #message-toast.error { border-color: #d1453b; }
+  #message-toast .actions { margin-top: 8px; display: flex; gap: 8px; }
 
   /* Sidebar footer — utility links */
   #sidebar-footer {
     border-top: 1px solid var(--rule);
     padding: 6px;
-    display: flex; flex-direction: column; gap: 1px;
     flex-shrink: 0;
   }
+  #footer-toggle-btn {
+    width: 100%; text-align: left; background: none; border: none; cursor: pointer;
+    padding: 7px 10px; font-size: 12px; color: var(--graphite); border-radius: 6px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  #footer-toggle-btn:hover { background: var(--link-bg); color: var(--ink); }
+  #footer-toggle-icon { display: inline-block; width: 8px; transition: transform 0.12s ease; }
+  #footer-links { display: flex; flex-direction: column; gap: 1px; }
+  #footer-links.collapsed { display: none; }
   .footer-link {
     display: flex; align-items: center; gap: 10px;
     padding: 8px 10px; border-radius: 6px;
@@ -453,6 +487,10 @@
   .ac-item.selected, .ac-item:hover { background: var(--link-bg); }
 
   #preview img { max-width: 100%; border-radius: 8px; margin: 10px 0; display: block; }
+  #preview table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 0.95em; }
+  #preview th, #preview td { border: 1px solid var(--rule); padding: 6px 12px; text-align: left; }
+  #preview th { background: var(--paper); font-weight: 600; }
+  #preview tbody tr:nth-child(even) { background: var(--paper); }
 
   /* Preferences modal */
   #prefs-backdrop {
@@ -475,6 +513,12 @@
   }
   #prefs-buttons { display: flex; gap: 8px; margin-bottom: 16px; }
   .prefs-hint { font-size: 11.5px; color: var(--graphite); line-height: 1.5; margin: 0 0 18px; }
+  #sidebar-toggles { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+  #prefs-card label.pref-checkbox {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 400; color: var(--ink); margin-bottom: 0; cursor: pointer;
+  }
+  .pref-checkbox input { margin: 0; }
   #theme-swatches { display: flex; gap: 8px; }
   .theme-swatch {
     flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
@@ -510,7 +554,7 @@
 <div id="app">
   <div id="sidebar">
     <div id="sidebar-head">
-      <h1>MeglaNote <button id="theme-toggle" title="Cycle theme (light / dark / pastel / kawaii)">🌙</button></h1>
+      <h1><span class="title-group">MeglaNote<span id="app-version"></span></span> <span class="header-btn-group"><button id="home-btn" title="Home">🏠</button><button id="prefs-btn" title="Preferences">⚙️</button></span></h1>
       <input id="search" placeholder="Search notes… (⌘F)" />
       <button id="new-btn">+ New note (⌘N)</button>
       <div id="tags-bar"></div>
@@ -522,12 +566,13 @@
     </div>
     <div id="note-list"></div>
     <div id="sidebar-footer">
-      <a href="#" id="home-link" class="footer-link"><span class="icon">🏠</span>Home</a>
-      <a href="#" id="cheatsheet-link" class="footer-link"><span class="icon">📘</span>Markdown cheat sheet</a>
-      <a href="#" id="trash-link" class="footer-link"><span class="icon">🗑</span>Trash<span id="trash-badge" class="trash-badge" hidden></span></a>
-      <a href="#" id="reveal-link" class="footer-link"><span class="icon">📂</span>Show notes in Finder</a>
-      <a href="#" id="check-update-link" class="footer-link"><span class="icon">⬆️</span>Check for Updates</a>
-      <a href="#" id="prefs-link" class="footer-link"><span class="icon">⚙️</span>Preferences</a>
+      <button id="footer-toggle-btn"><span id="footer-toggle-icon">▸</span> More</button>
+      <div id="footer-links">
+        <a href="#" id="cheatsheet-link" class="footer-link"><span class="icon">📘</span>Markdown cheat sheet</a>
+        <a href="#" id="trash-link" class="footer-link"><span class="icon">🗑</span>Trash<span id="trash-badge" class="trash-badge" hidden></span></a>
+        <a href="#" id="reveal-link" class="footer-link"><span class="icon">📂</span>Show notes in Finder</a>
+        <a href="#" id="check-update-link" class="footer-link"><span class="icon">⬆️</span>Check for Updates</a>
+      </div>
     </div>
   </div>
   <div id="main"></div>
@@ -550,6 +595,12 @@
       <button class="theme-swatch" data-theme="pastel" title="Pastel"><span class="swatch-dot swatch-pastel"></span>Pastel</button>
       <button class="theme-swatch" data-theme="kawaii" title="Kawaii"><span class="swatch-dot swatch-kawaii"></span>Kawaii</button>
     </div>
+    <label>Sidebar</label>
+    <div id="sidebar-toggles">
+      <label class="pref-checkbox"><input type="checkbox" id="toggle-show-folders" /> Show folders</label>
+      <label class="pref-checkbox"><input type="checkbox" id="toggle-show-tags" /> Show tags</label>
+      <label class="pref-checkbox"><input type="checkbox" id="toggle-show-colors" /> Show color filters</label>
+    </div>
     <button class="toolbtn active-mode" id="prefs-close" style="margin-top:18px;">Close</button>
   </div>
 </div>
@@ -563,8 +614,8 @@ let mode = 'preview';  // 'edit' | 'preview'
 let searchTerm = '';
 let activeTagFilter = null;
 let ready = false;
-let view = 'list';    // 'list' | 'detail' — mobile pane control
-let panel = 'note';    // 'note' | 'trash' | 'home' — what #main shows
+let view = 'detail';  // 'list' | 'detail' — mobile pane control
+let panel = 'home';    // 'note' | 'trash' | 'home' — what #main shows
 let focusTitleOnRender = false;
 let confirmDeleteId = null;
 let purgeConfirmId = null;
@@ -586,13 +637,16 @@ window.notesAPI = {
   revealFolder: () => invoke('reveal_folder'),
   loadSettings: () => invoke('load_settings'),
   saveSettings: (json) => invoke('save_settings', { json }),
+  getAppVersion: () => invoke('get_app_version'),
   getNotesDir: () => invoke('get_notes_dir'),
   setNotesDir: (path) => invoke('set_notes_dir', { path }),
   pickNotesFolder: () => invoke('pick_notes_folder'),
   saveImage: (name, bytes) => invoke('save_image', { name, bytes }),
+  fetchImageBytes: (url) => invoke('fetch_image_bytes', { url }),
   getPendingClip: () => invoke('get_pending_clip'),
   checkForUpdate: () => invoke('check_for_update'),
-  installUpdate: () => invoke('install_update')
+  installUpdate: () => invoke('install_update'),
+  log: (msg) => invoke('frontend_log', { msg }).catch(() => {})
 };
 
 const NOTE_COLORS = [
@@ -616,21 +670,38 @@ function uid() { return 'n' + Date.now().toString(36) + Math.random().toString(3
 const THEME_ICONS = { light: '☀️', dark: '🌙', pastel: '🌸', kawaii: '🎀' };
 const THEME_ORDER = ['light', 'dark', 'pastel', 'kawaii'];
 
+let appSettings = {};
+function saveAppSettings() {
+  window.notesAPI.saveSettings(JSON.stringify(appSettings));
+}
+
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
-  document.getElementById('theme-toggle').textContent = THEME_ICONS[theme] || '☀️';
   document.querySelectorAll('.theme-swatch').forEach(el => {
     el.classList.toggle('active', el.dataset.theme === theme);
   });
-  window.notesAPI.saveSettings(JSON.stringify({ theme }));
+  appSettings.theme = theme;
+  saveAppSettings();
+}
+
+function setSidebarFooterCollapsed(collapsed, opts) {
+  opts = opts || {};
+  const linksEl = document.getElementById('footer-links');
+  const iconEl = document.getElementById('footer-toggle-icon');
+  if (linksEl) linksEl.classList.toggle('collapsed', collapsed);
+  if (iconEl) iconEl.textContent = collapsed ? '▸' : '▾';
+  if (opts.save !== false) {
+    appSettings.sidebarFooterCollapsed = collapsed;
+    saveAppSettings();
+  }
 }
 
 async function loadTheme() {
-  let settings = {};
-  try { settings = JSON.parse(await window.notesAPI.loadSettings() || '{}'); } catch (e) {}
-  const theme = THEME_ORDER.includes(settings.theme) ? settings.theme : 'light';
+  try { appSettings = JSON.parse(await window.notesAPI.loadSettings() || '{}'); } catch (e) { appSettings = {}; }
+  const theme = THEME_ORDER.includes(appSettings.theme) ? appSettings.theme : 'light';
   document.documentElement.setAttribute('data-theme', theme);
-  document.getElementById('theme-toggle').textContent = THEME_ICONS[theme] || '☀️';
+  // Collapsed by default (to save sidebar space) unless explicitly expanded before.
+  setSidebarFooterCollapsed(appSettings.sidebarFooterCollapsed !== false, { save: false });
 }
 
 function toggleTheme() {
@@ -832,8 +903,13 @@ function renderPieceMaybeColumns(piece) {
 
 /* Wraps each heading + its following content into a collapsible group,
    scoped to the direct children of `container` only. Every heading gets
-   a toggle, even ones with nothing following them in that container. */
-function makeHeadingsCollapsible(container) {
+   a toggle, even ones with nothing following them in that container.
+   Recurses into each new group so a heading nested under a higher-level
+   one (e.g. ### under ##) also gets its own toggle. `noteId` + `keyCounts`
+   build a stable per-note key for each heading (level + text + occurrence
+   number) so collapsed/expanded state can be remembered across renders;
+   `collapsedSet` is the set of currently-collapsed keys for this note. */
+function makeHeadingsCollapsible(container, noteId, keyCounts, collapsedSet) {
   const children = Array.from(container.children);
   let i = 0;
   while (i < children.length) {
@@ -859,15 +935,41 @@ function makeHeadingsCollapsible(container) {
     }
     const toggle = document.createElement('span');
     toggle.className = 'heading-toggle';
-    toggle.textContent = '▾';
     el.prepend(toggle);
+
+    const countKey = level + '|' + (el.textContent || '').trim();
+    const occurrence = keyCounts.get(countKey) || 0;
+    keyCounts.set(countKey, occurrence + 1);
+    const headingKey = countKey + '|' + occurrence;
+
+    const startCollapsed = collapsedSet.has(headingKey);
+    wrapper.classList.toggle('collapsed', startCollapsed);
+    toggle.textContent = startCollapsed ? '▸' : '▾';
+
     toggle.addEventListener('click', (e) => {
       e.stopPropagation();
       const collapsed = wrapper.classList.toggle('collapsed');
       toggle.textContent = collapsed ? '▸' : '▾';
+      setHeadingCollapsed(noteId, headingKey, collapsed);
     });
+
+    // Recurse so headings nested inside this group (e.g. ### under ##) get their own toggle too.
+    makeHeadingsCollapsible(wrapper, noteId, keyCounts, collapsedSet);
+
     i = j;
   }
+}
+
+/* Persists whether a given heading (identified by headingKey, from
+   makeHeadingsCollapsible above) is collapsed, scoped to noteId, into
+   appSettings so it's remembered next time this note is opened. */
+function setHeadingCollapsed(noteId, headingKey, collapsed) {
+  if (!noteId) return;
+  if (!appSettings.collapsedHeadings) appSettings.collapsedHeadings = {};
+  const forNote = appSettings.collapsedHeadings[noteId] || (appSettings.collapsedHeadings[noteId] = {});
+  if (collapsed) forNote[headingKey] = true;
+  else delete forNote[headingKey];
+  saveAppSettings();
 }
 
 /* If a .col-block's content starts with a subcol-row whose very first
@@ -1093,7 +1195,7 @@ function openRenameFolderPrompt(anchorEl, folderName) {
     try {
       newName = await window.notesAPI.renameFolder(folderName, name);
     } catch (e) {
-      alert(typeof e === 'string' ? e : 'Could not rename folder.');
+      showMessageToast(typeof e === 'string' ? e : 'Could not rename folder.', { error: true, sticky: true });
       return;
     }
     if (activeFolderFilter === folderName) activeFolderFilter = newName;
@@ -1157,7 +1259,12 @@ function renderSidebar() {
   const list = document.getElementById('note-list');
   const tagsBar = document.getElementById('tags-bar');
   const foldersBar = document.getElementById('folders-bar');
+  const colorsBarEl = document.getElementById('colors-bar');
   const banner = document.getElementById('filter-banner');
+
+  tagsBar.style.display = appSettings.showTags === false ? 'none' : '';
+  foldersBar.style.display = appSettings.showFolders === false ? 'none' : '';
+  colorsBarEl.style.display = appSettings.showColors === false ? 'none' : '';
 
   const tags = allTags();
   tagsBar.innerHTML = tags.map(t =>
@@ -1236,7 +1343,11 @@ function renderSidebar() {
   }
   if (searchTerm.trim()) {
     const q = searchTerm.trim().toLowerCase();
-    items = items.filter(n => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q));
+    items = items.filter(n =>
+      n.title.toLowerCase().includes(q) ||
+      n.body.toLowerCase().includes(q) ||
+      (n.tags || []).some(t => t.toLowerCase().includes(q))
+    );
   }
   if (!items.length) {
     list.innerHTML = `<div id="empty-list">${searchTerm || activeTagFilter || activeColorFilter || activeFolderFilter !== null ? 'No notes match.' : 'No notes yet — create one above.'}</div>`;
@@ -1296,10 +1407,8 @@ function renderMain() {
       <button class="toolbtn ${mode==='edit'?'active-mode':''}" id="edit-toggle">Edit</button>
       <button class="toolbtn ${mode==='preview'?'active-mode':''}" id="preview-toggle">Preview</button>
       ${mode === 'edit' ? `
-        <button class="toolbtn" id="quote-btn" title="Format selected line(s) as a quote">❝ Quote</button>
-        <button class="toolbtn" id="col-btn" title="Insert a column break">⫲ Column break</button>
-        <button class="toolbtn" id="subcol-btn" title="Split this column side-by-side into sub-columns">⫶ Sub-column</button>
-        <button class="toolbtn" id="endcol-btn" title="Start a normal single-column section here (can come before another Column break later)">▤ 1-column section</button>
+        <button class="toolbtn" id="layout-btn" title="Column layout options">▤ Layout</button>
+        <button class="toolbtn" id="table-btn" title="Insert a table">⊞ Table</button>
       ` : ''}
       <button class="toolbtn" id="pin-btn" title="${note.pinned ? 'Unpin' : 'Pin to top'}">${note.pinned ? '★ Pinned' : '☆ Pin'}</button>
       <button class="toolbtn" id="color-btn" title="Flag this note with a color">
@@ -1393,15 +1502,36 @@ function renderMain() {
     ta.addEventListener('keydown', (e) => onEditorKeydown(e, ta));
     ta.addEventListener('click', () => checkAutocomplete(ta));
     ta.addEventListener('blur', () => setTimeout(closeAutocomplete, 150));
-    document.getElementById('quote-btn').addEventListener('click', () => quoteSelection(ta));
-    document.getElementById('col-btn').addEventListener('click', () => insertAtCursor(ta, '%%col%%'));
-    document.getElementById('subcol-btn').addEventListener('click', () => insertAtCursor(ta, '%%subcol%%'));
-    document.getElementById('endcol-btn').addEventListener('click', () => insertAtCursor(ta, '%%endcol%%'));
+    document.getElementById('layout-btn').addEventListener('click', (e) => openLayoutMenu(e.currentTarget, ta));
+    document.getElementById('table-btn').addEventListener('click', (e) => openTablePrompt(e.currentTarget, ta));
     ta.addEventListener('dragover', (e) => e.preventDefault());
     ta.addEventListener('drop', async (e) => {
       e.preventDefault();
       const files = Array.from(e.dataTransfer?.files || []).filter(f => f.type.startsWith('image/'));
-      for (const file of files) await insertImage(ta, file);
+      if (files.length) {
+        for (const file of files) await insertImage(ta, file);
+        return;
+      }
+      // No actual file - likely an <img> dragged out of a web page instead
+      // of a local file. Browsers hand that over as a URL, not file bytes.
+      const uriList = e.dataTransfer?.getData('text/uri-list') || '';
+      const html = e.dataTransfer?.getData('text/html') || '';
+      const plain = e.dataTransfer?.getData('text/plain') || '';
+      let imgUrl = uriList.trim();
+      if (!imgUrl && html) {
+        const m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+        if (m) imgUrl = m[1];
+      }
+      if (!imgUrl && /^https?:\/\//i.test(plain.trim())) imgUrl = plain.trim();
+      if (imgUrl && /^https?:\/\//i.test(imgUrl)) {
+        try {
+          const bytes = await window.notesAPI.fetchImageBytes(imgUrl);
+          const name = (imgUrl.split('/').pop() || 'image').split('?')[0] || 'image.png';
+          await insertImageBytes(ta, bytes, name);
+        } catch (err) {
+          showMessageToast('Could not download that image: ' + (err && err.message ? err.message : err), { error: true, sticky: true });
+        }
+      }
     });
     ta.addEventListener('paste', async (e) => {
       const items = Array.from(e.clipboardData?.items || []);
@@ -1427,7 +1557,13 @@ function renderMain() {
       cb.addEventListener('change', () => toggleCheckbox(idx));
     });
     document.querySelectorAll('#preview .col-block').forEach(promoteLeadingHeadings);
-    document.querySelectorAll('#preview, #preview .col-block, #preview .subcol-block').forEach(makeHeadingsCollapsible);
+    {
+      const collapsedForNote = (appSettings.collapsedHeadings || {})[activeId] || {};
+      const collapsedSet = new Set(Object.keys(collapsedForNote));
+      const keyCounts = new Map();
+      document.querySelectorAll('#preview, #preview .col-block, #preview .subcol-block')
+        .forEach(c => makeHeadingsCollapsible(c, activeId, keyCounts, collapsedSet));
+    }
     document.querySelectorAll('#preview img').forEach(img => {
       const src = img.getAttribute('src') || '';
       if (!/^([a-z][a-z0-9+.-]*:)/i.test(src) && notesDirPath) {
@@ -1714,6 +1850,100 @@ function onEditorInput(ta) {
   checkAutocomplete(ta);
 }
 
+function closeLayoutMenu() {
+  const el = document.getElementById('layout-menu');
+  if (el) el.remove();
+  document.removeEventListener('mousedown', closeLayoutMenuOnOutsideClick);
+}
+function closeLayoutMenuOnOutsideClick(e) {
+  const box = document.getElementById('layout-menu');
+  if (box && !box.contains(e.target)) closeLayoutMenu();
+}
+function openLayoutMenu(anchorEl, ta) {
+  closeColorPicker();
+  closeFolderPopover();
+  closeFolderActionsPopover();
+  closeTablePrompt();
+  closeLayoutMenu();
+  const box = document.createElement('div');
+  box.id = 'layout-menu';
+  box.innerHTML = `
+    <button id="layout-new-column">➕ New column</button>
+    <button id="layout-sub-columns">⫶ Split into sub-columns</button>
+    <button id="layout-end-columns">▤ Back to single column</button>
+  `;
+  document.body.appendChild(box);
+  const rect = anchorEl.getBoundingClientRect();
+  box.style.left = Math.min(rect.left, window.innerWidth - 200) + 'px';
+  box.style.top = (rect.bottom + 6) + 'px';
+  document.getElementById('layout-new-column').addEventListener('click', () => {
+    insertAtCursor(ta, '%%col%%');
+    closeLayoutMenu();
+  });
+  document.getElementById('layout-sub-columns').addEventListener('click', () => {
+    insertAtCursor(ta, '%%subcol%%');
+    closeLayoutMenu();
+  });
+  document.getElementById('layout-end-columns').addEventListener('click', () => {
+    insertAtCursor(ta, '%%endcol%%');
+    closeLayoutMenu();
+  });
+  setTimeout(() => document.addEventListener('mousedown', closeLayoutMenuOnOutsideClick), 0);
+}
+
+function buildMarkdownTable(rows, cols) {
+  rows = Math.max(1, Math.min(20, rows || 1));
+  cols = Math.max(1, Math.min(10, cols || 1));
+  const header = '| ' + Array.from({ length: cols }, (_, i) => `Column ${i + 1}`).join(' | ') + ' |';
+  const divider = '| ' + Array.from({ length: cols }, () => '---').join(' | ') + ' |';
+  const bodyRows = Array.from({ length: rows }, () => '| ' + Array.from({ length: cols }, () => ' ').join(' | ') + ' |');
+  return [header, divider, ...bodyRows].join('\n');
+}
+function closeTablePrompt() {
+  const el = document.getElementById('table-popover');
+  if (el) el.remove();
+  document.removeEventListener('mousedown', closeTablePromptOnOutsideClick);
+}
+function closeTablePromptOnOutsideClick(e) {
+  const box = document.getElementById('table-popover');
+  if (box && !box.contains(e.target)) closeTablePrompt();
+}
+function openTablePrompt(anchorEl, ta) {
+  closeColorPicker();
+  closeFolderPopover();
+  closeFolderActionsPopover();
+  closeLayoutMenu();
+  closeTablePrompt();
+  const box = document.createElement('div');
+  box.id = 'table-popover';
+  box.innerHTML = `
+    <div class="table-popover-row">
+      <label>Rows <input type="number" id="table-rows" value="3" min="1" max="20" /></label>
+      <label>Columns <input type="number" id="table-cols" value="3" min="1" max="10" /></label>
+    </div>
+    <button class="toolbtn active-mode" id="table-insert-btn">Insert table</button>
+  `;
+  document.body.appendChild(box);
+  const rect = anchorEl.getBoundingClientRect();
+  box.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+  box.style.top = (rect.bottom + 6) + 'px';
+  document.getElementById('table-rows').focus();
+  function doInsertTable() {
+    const rows = parseInt(document.getElementById('table-rows').value, 10) || 3;
+    const cols = parseInt(document.getElementById('table-cols').value, 10) || 3;
+    insertAtCursor(ta, buildMarkdownTable(rows, cols));
+    closeTablePrompt();
+  }
+  document.getElementById('table-insert-btn').addEventListener('click', doInsertTable);
+  box.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); doInsertTable(); }
+      if (e.key === 'Escape') closeTablePrompt();
+    });
+  });
+  setTimeout(() => document.addEventListener('mousedown', closeTablePromptOnOutsideClick), 0);
+}
+
 function insertAtCursor(ta, text) {
   const start = ta.selectionStart, end = ta.selectionEnd;
   const val = ta.value;
@@ -1734,6 +1964,10 @@ async function insertImage(ta, file) {
   const buf = await file.arrayBuffer();
   const bytes = Array.from(new Uint8Array(buf));
   const name = file.name || `image.${(file.type.split('/')[1] || 'png')}`;
+  await insertImageBytes(ta, bytes, name);
+}
+
+async function insertImageBytes(ta, bytes, name) {
   try {
     const relPath = await window.notesAPI.saveImage(name, bytes);
     const start = ta.selectionStart, end = ta.selectionEnd;
@@ -1807,7 +2041,6 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
 
 document.getElementById('new-btn').addEventListener('click', () => createNote(''));
 
@@ -1827,7 +2060,12 @@ document.getElementById('cheatsheet-link').addEventListener('click', async (e) =
   }
 });
 
-document.getElementById('home-link').addEventListener('click', (e) => {
+document.getElementById('footer-toggle-btn').addEventListener('click', () => {
+  const linksEl = document.getElementById('footer-links');
+  setSidebarFooterCollapsed(!linksEl.classList.contains('collapsed'));
+});
+
+document.getElementById('home-btn').addEventListener('click', (e) => {
   e.preventDefault();
   panel = 'home';
   view = 'detail';
@@ -1864,6 +2102,9 @@ async function openPreferences() {
   document.querySelectorAll('.theme-swatch').forEach(el => {
     el.classList.toggle('active', el.dataset.theme === current);
   });
+  document.getElementById('toggle-show-folders').checked = appSettings.showFolders !== false;
+  document.getElementById('toggle-show-tags').checked = appSettings.showTags !== false;
+  document.getElementById('toggle-show-colors').checked = appSettings.showColors !== false;
   document.getElementById('prefs-backdrop').classList.add('open');
 }
 function closePreferences() {
@@ -1875,7 +2116,7 @@ async function reloadAfterFolderChange() {
   await loadNotes();
 }
 
-document.getElementById('prefs-link').addEventListener('click', (e) => {
+document.getElementById('prefs-btn').addEventListener('click', (e) => {
   e.preventDefault();
   openPreferences();
 });
@@ -1897,6 +2138,15 @@ document.getElementById('prefs-default').addEventListener('click', async () => {
   notesDirPath = await window.notesAPI.getNotesDir();
   document.getElementById('prefs-path').textContent = notesDirPath;
   await reloadAfterFolderChange();
+});
+
+['toggle-show-folders', 'toggle-show-tags', 'toggle-show-colors'].forEach(id => {
+  document.getElementById(id).addEventListener('change', (e) => {
+    const key = { 'toggle-show-folders': 'showFolders', 'toggle-show-tags': 'showTags', 'toggle-show-colors': 'showColors' }[id];
+    appSettings[key] = e.target.checked;
+    saveAppSettings();
+    renderSidebar();
+  });
 });
 document.querySelectorAll('.theme-swatch').forEach(el => {
   el.addEventListener('click', () => applyTheme(el.dataset.theme));
@@ -1942,6 +2192,29 @@ async function createNoteFromClip(title, url, text) {
   }
 }
 
+/* ---------- Generic message toast (alert() isn't reliably visible here) ---------- */
+function closeMessageToast() {
+  const el = document.getElementById('message-toast');
+  if (el) el.remove();
+}
+function showMessageToast(text, opts) {
+  opts = opts || {};
+  closeMessageToast();
+  const box = document.createElement('div');
+  box.id = 'message-toast';
+  if (opts.error) box.classList.add('error');
+  box.innerHTML = `<div class="n">${escapeHtml(text)}</div>`;
+  if (opts.sticky) {
+    box.innerHTML += `<div class="actions"><button class="toolbtn" id="message-toast-close">Close</button></div>`;
+  }
+  document.body.appendChild(box);
+  if (opts.sticky) {
+    document.getElementById('message-toast-close').addEventListener('click', closeMessageToast);
+  } else {
+    setTimeout(closeMessageToast, 3500);
+  }
+}
+
 /* ---------- Auto-updater ---------- */
 function closeUpdateToast() {
   const el = document.getElementById('update-toast');
@@ -1978,18 +2251,27 @@ function showUpdateToast(info) {
   });
 }
 async function checkForUpdates(silent) {
+  window.notesAPI.log(`checkForUpdates(silent=${silent}) starting`);
   try {
     const info = await window.notesAPI.checkForUpdate();
+    window.notesAPI.log(`checkForUpdate() resolved: ${JSON.stringify(info)}`);
     if (info) showUpdateToast(info);
-    else if (!silent) alert("You're up to date.");
+    else if (!silent) showMessageToast("You're up to date.", { sticky: false });
   } catch (e) {
-    if (!silent) alert('Could not check for updates: ' + (e && e.message ? e.message : e));
+    window.notesAPI.log(`checkForUpdate() threw: ${e && e.message ? e.message : e}`);
+    if (!silent) showMessageToast('Could not check for updates: ' + (e && e.message ? e.message : e), { error: true, sticky: true });
   }
 }
 document.getElementById('check-update-link').addEventListener('click', (e) => {
   e.preventDefault();
+  window.notesAPI.log('check-update-link clicked');
   checkForUpdates(false);
 });
+
+window.notesAPI.getAppVersion().then(v => {
+  const el = document.getElementById('app-version');
+  if (el) el.textContent = 'v' + v;
+}).catch(() => {});
 
 loadTheme();
 loadNotes().then(async () => {

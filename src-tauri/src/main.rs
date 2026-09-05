@@ -476,6 +476,11 @@ fn save_settings(json: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn get_app_version(app: tauri::AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+#[tauri::command]
 fn get_notes_dir() -> String {
     notes_dir().to_string_lossy().to_string()
 }
@@ -499,6 +504,23 @@ async fn pick_notes_folder(app: tauri::AppHandle) -> Option<String> {
     folder
         .and_then(|f| f.into_path().ok())
         .map(|p| p.to_string_lossy().to_string())
+}
+
+/// Downloads an image from a URL (e.g. one dragged out of a web page) so
+/// it can be saved locally the same way a pasted/dropped file is. Done in
+/// Rust rather than the webview's own fetch() to sidestep CORS entirely -
+/// most image hosts don't send the headers a browser-side fetch needs.
+#[tauri::command]
+async fn fetch_image_bytes(url: String) -> Result<Vec<u8>, String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("Not a web URL".to_string());
+    }
+    let resp = reqwest::get(&url).await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("Server responded with {}", resp.status()));
+    }
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    Ok(bytes.to_vec())
 }
 
 #[tauri::command]
@@ -566,14 +588,30 @@ fn get_pending_clip(state: tauri::State<ClipState>) -> Option<serde_json::Value>
     state.0.lock().unwrap().take()
 }
 
+/// Lets the frontend write into the same debug log the deep-link plumbing
+/// uses, so we can see exactly what the webview is doing without needing
+/// to open browser dev tools.
+#[tauri::command]
+fn frontend_log(msg: String) {
+    debug_log(&format!("[frontend] {}", msg));
+}
+
 /// Checks the update endpoint (see tauri.conf.json) for a newer release.
 /// On success, stashes the `Update` handle in state so `install_update`
 /// can use it without re-checking.
 #[tauri::command]
 async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, String> {
-    let updater = app.updater().map_err(|e| e.to_string())?;
+    debug_log("check_for_update: called");
+    let updater = match app.updater() {
+        Ok(u) => u,
+        Err(e) => {
+            debug_log(&format!("check_for_update: app.updater() failed: {}", e));
+            return Err(e.to_string());
+        }
+    };
     match updater.check().await {
         Ok(Some(update)) => {
+            debug_log(&format!("check_for_update: update available -> {}", update.version));
             let info = UpdateInfo {
                 version: update.version.clone(),
                 notes: update.body.clone(),
@@ -583,8 +621,14 @@ async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, S
             }
             Ok(Some(info))
         }
-        Ok(None) => Ok(None),
-        Err(e) => Err(e.to_string()),
+        Ok(None) => {
+            debug_log("check_for_update: no update available (already on latest)");
+            Ok(None)
+        }
+        Err(e) => {
+            debug_log(&format!("check_for_update: error -> {}", e));
+            Err(e.to_string())
+        }
     }
 }
 
@@ -597,7 +641,8 @@ async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
         let state = app
             .try_state::<UpdateState>()
             .ok_or("Updater not ready".to_string())?;
-        state.0.lock().unwrap().take()
+        let taken = state.0.lock().unwrap().take();
+        taken
     };
     let update = update.ok_or("No update ready - check for updates first.".to_string())?;
     update
@@ -710,13 +755,16 @@ fn main() {
             reveal_folder,
             load_settings,
             save_settings,
+            get_app_version,
             get_notes_dir,
             set_notes_dir,
             pick_notes_folder,
             save_image,
+            fetch_image_bytes,
             get_pending_clip,
             check_for_update,
-            install_update
+            install_update,
+            frontend_log
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
