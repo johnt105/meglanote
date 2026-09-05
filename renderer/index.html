@@ -64,7 +64,7 @@
     --rule-faint: rgba(255, 111, 165, 0.12);
   }
   html[data-theme="kawaii"] body { font-family: 'Baloo 2', 'Work Sans', system-ui, sans-serif; }
-  html[data-theme="kawaii"] #sidebar-head h1,
+  html[data-theme="kawaii"] #nav-rail-head h1,
   html[data-theme="kawaii"] .note-card .t,
   html[data-theme="kawaii"] #title-input,
   html[data-theme="kawaii"] #placeholder { font-family: 'Baloo 2', 'Work Sans', system-ui, sans-serif; }
@@ -88,18 +88,41 @@
   #app { display: flex; height: 100vh; min-height: 480px; }
 
   /* Sidebar */
+  #nav-rail {
+    width: 190px; min-width: 160px; flex-shrink: 0;
+    border-right: 1px solid var(--rule);
+    display: flex; flex-direction: column;
+    background: var(--paper);
+  }
+  #nav-rail-head {
+    padding: 18px 14px 12px;
+    border-bottom: 1px solid var(--rule);
+  }
+  #nav-rail-body { flex: 1; overflow-y: auto; padding: 8px 10px; }
+  .nav-section { margin-bottom: 2px; }
+  .nav-section-toggle {
+    width: 100%; text-align: left; background: none; border: none; cursor: pointer;
+    padding: 7px 4px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.4px; color: var(--graphite);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .nav-section-toggle:hover { color: var(--ink); }
+  .nav-section-toggle .chevron { display: inline-block; transition: transform 0.12s ease; font-size: 10px; }
+  .nav-section.collapsed .nav-section-toggle .chevron { transform: rotate(-90deg); }
+  .nav-section-body { padding: 2px 2px 12px; }
+  .nav-section.collapsed .nav-section-body { display: none; }
   #sidebar {
-    width: 280px; min-width: 220px; flex-shrink: 0;
+    width: 260px; min-width: 200px; flex-shrink: 0;
     border-right: 1px solid var(--rule);
     display: flex; flex-direction: column;
     background: var(--paper);
   }
   #sidebar-head {
-    padding: 18px 16px 12px;
+    padding: 14px 16px 12px;
     border-bottom: 1px solid var(--rule);
   }
-  #sidebar-head h1 {
-    font-size: 20px; font-weight: 700; margin: 0 0 12px;
+  #nav-rail-head h1 {
+    font-size: 18px; font-weight: 700; margin: 0 0 12px;
     letter-spacing: 0.2px;
     display: flex; align-items: center; justify-content: space-between;
   }
@@ -124,7 +147,7 @@
   }
   #search:focus { outline: none; border-color: var(--accent); }
   #new-btn {
-    margin-top: 10px; width: 100%; padding: 8px 10px;
+    width: 100%; padding: 8px 10px;
     background: var(--accent); color: #fff; border: none;
     border-radius: 6px; font-family: inherit; font-size: 13px; font-weight: 500;
     cursor: pointer;
@@ -543,6 +566,7 @@
   #back-btn { display: none; }
 
   @media (max-width: 700px) {
+    #nav-rail { display: none; }
     #sidebar { width: 100%; border-right: none; }
     #app.view-detail #sidebar { display: none; }
     #app.view-list #main { display: none; }
@@ -559,19 +583,25 @@
 </head>
 <body>
 <div id="app">
-  <div id="sidebar">
-    <div id="sidebar-head">
+  <div id="nav-rail">
+    <div id="nav-rail-head">
       <h1><span class="title-group">MeglaNote<span id="app-version"></span></span> <span class="header-btn-group"><button id="home-btn" title="Home">🏠</button><button id="prefs-btn" title="Preferences">⚙️</button></span></h1>
       <input id="search" placeholder="Search notes… (⌘F)" />
-      <button id="new-btn">+ New note (⌘N)</button>
-      <div id="tags-bar"></div>
-      <div id="folders-bar"></div>
-      <div id="colors-bar"></div>
     </div>
-    <div id="filter-banner" style="display:none;">
-      <span></span><a id="clear-filter">Clear</a>
+    <div id="nav-rail-body">
+      <div class="nav-section" id="nav-section-folders">
+        <button class="nav-section-toggle" data-nav-toggle="folders"><span class="chevron">▾</span> Folders</button>
+        <div id="folders-bar" class="nav-section-body"></div>
+      </div>
+      <div class="nav-section" id="nav-section-tags">
+        <button class="nav-section-toggle" data-nav-toggle="tags"><span class="chevron">▾</span> Tags</button>
+        <div id="tags-bar" class="nav-section-body"></div>
+      </div>
+      <div class="nav-section" id="nav-section-colors">
+        <button class="nav-section-toggle" data-nav-toggle="colors"><span class="chevron">▾</span> Colors</button>
+        <div id="colors-bar" class="nav-section-body"></div>
+      </div>
     </div>
-    <div id="note-list"></div>
     <div id="sidebar-footer">
       <button id="footer-toggle-btn"><span id="footer-toggle-icon">▸</span> More</button>
       <div id="footer-links">
@@ -581,6 +611,15 @@
         <a href="#" id="check-update-link" class="footer-link"><span class="icon">⬆️</span>Check for Updates</a>
       </div>
     </div>
+  </div>
+  <div id="sidebar">
+    <div id="sidebar-head">
+      <button id="new-btn">+ New note (⌘N)</button>
+    </div>
+    <div id="filter-banner" style="display:none;">
+      <span></span><a id="clear-filter">Clear</a>
+    </div>
+    <div id="note-list"></div>
   </div>
   <div id="main"></div>
 </div>
@@ -705,12 +744,27 @@ function setSidebarFooterCollapsed(collapsed, opts) {
   }
 }
 
+function setNavSectionCollapsed(section, collapsed, opts) {
+  opts = opts || {};
+  const el = document.getElementById('nav-section-' + section);
+  if (el) el.classList.toggle('collapsed', collapsed);
+  if (opts.save !== false) {
+    appSettings.navCollapsed = appSettings.navCollapsed || {};
+    appSettings.navCollapsed[section] = collapsed;
+    saveAppSettings();
+  }
+}
+
 async function loadTheme() {
   try { appSettings = JSON.parse(await window.notesAPI.loadSettings() || '{}'); } catch (e) { appSettings = {}; }
   const theme = THEME_ORDER.includes(appSettings.theme) ? appSettings.theme : 'light';
   document.documentElement.setAttribute('data-theme', theme);
   // Collapsed by default (to save sidebar space) unless explicitly expanded before.
   setSidebarFooterCollapsed(appSettings.sidebarFooterCollapsed !== false, { save: false });
+  const navCollapsed = appSettings.navCollapsed || {};
+  ['folders', 'tags', 'colors'].forEach(section => {
+    setNavSectionCollapsed(section, !!navCollapsed[section], { save: false });
+  });
 }
 
 function toggleTheme() {
@@ -2347,6 +2401,13 @@ document.getElementById('cheatsheet-link').addEventListener('click', async (e) =
 document.getElementById('footer-toggle-btn').addEventListener('click', () => {
   const linksEl = document.getElementById('footer-links');
   setSidebarFooterCollapsed(!linksEl.classList.contains('collapsed'));
+});
+document.querySelectorAll('.nav-section-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const section = btn.dataset.navToggle;
+    const el = document.getElementById('nav-section-' + section);
+    setNavSectionCollapsed(section, !el.classList.contains('collapsed'));
+  });
 });
 
 document.getElementById('home-btn').addEventListener('click', (e) => {
