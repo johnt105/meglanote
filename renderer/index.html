@@ -124,9 +124,9 @@
   #nav-rail-head h1 {
     font-size: 18px; font-weight: 700; margin: 0 0 12px;
     letter-spacing: 0.2px;
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
   }
-  .header-btn-group { display: flex; align-items: center; gap: 6px; }
+  .header-btn-group { display: flex; align-items: center; gap: 6px; width: 100%; }
   #home-btn, #prefs-btn {
     background: none; border: 1px solid var(--rule); border-radius: 100px;
     width: 28px; height: 28px; font-size: 14px; cursor: pointer;
@@ -1325,9 +1325,9 @@ function renderSidebar() {
   const colorsBarEl = document.getElementById('colors-bar');
   const banner = document.getElementById('filter-banner');
 
-  tagsBar.style.display = appSettings.showTags === false ? 'none' : '';
-  foldersBar.style.display = appSettings.showFolders === false ? 'none' : '';
-  colorsBarEl.style.display = appSettings.showColors === false ? 'none' : '';
+  document.getElementById('nav-section-tags').style.display = appSettings.showTags === false ? 'none' : '';
+  document.getElementById('nav-section-folders').style.display = appSettings.showFolders === false ? 'none' : '';
+  document.getElementById('nav-section-colors').style.display = appSettings.showColors === false ? 'none' : '';
 
   const tags = allTags();
   tagsBar.innerHTML = tags.map(t =>
