@@ -1,0 +1,2008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MeglaNote</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&family=Baloo+2:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<style>
+  :root {
+    --paper: #F6F3EA;
+    --card: #FFFEFB;
+    --ink: #2A2823;
+    --graphite: #6F6A5E;
+    --rule: #DFD8C4;
+    --accent: #A6403D;
+    --accent-dark: #832F2D;
+    --link: #55603F;
+    --link-bg: #EDEADC;
+    --tag: #3E5C76;
+    --tag-bg: #E4EBF1;
+    --rule-faint: rgba(42, 40, 35, 0.09);
+  }
+  html[data-theme="dark"] {
+    --paper: #1E1C18;
+    --card: #262420;
+    --ink: #ECE7DB;
+    --graphite: #A39D8C;
+    --rule: #3A362E;
+    --accent: #E0776A;
+    --accent-dark: #C25A4E;
+    --link: #9BC17F;
+    --link-bg: #2C3626;
+    --tag: #8FB4DE;
+    --tag-bg: #22303F;
+    --rule-faint: rgba(255, 255, 255, 0.08);
+  }
+  html[data-theme="pastel"] {
+    --paper: #FBF3F8;
+    --card: #FFFDFE;
+    --ink: #4A3B4D;
+    --graphite: #9C8AA0;
+    --rule: #EAD9E8;
+    --accent: #D97AA6;
+    --accent-dark: #C15D8C;
+    --link: #6FA383;
+    --link-bg: #E6F3EA;
+    --tag: #7A8FC2;
+    --tag-bg: #E7EBFA;
+    --rule-faint: rgba(74, 59, 77, 0.08);
+  }
+  html[data-theme="kawaii"] {
+    --paper: #FFEFF6;
+    --card: #FFFFFF;
+    --ink: #6B4C6B;
+    --graphite: #C08FB3;
+    --rule: #FFD1E8;
+    --accent: #FF6FA5;
+    --accent-dark: #E8548C;
+    --link: #3EC6C1;
+    --link-bg: #D9F7F5;
+    --tag: #9B7EDE;
+    --tag-bg: #EEE4FC;
+    --rule-faint: rgba(255, 111, 165, 0.12);
+  }
+  html[data-theme="kawaii"] body { font-family: 'Baloo 2', 'Work Sans', system-ui, sans-serif; }
+  html[data-theme="kawaii"] #sidebar-head h1,
+  html[data-theme="kawaii"] .note-card .t,
+  html[data-theme="kawaii"] #title-input,
+  html[data-theme="kawaii"] #placeholder { font-family: 'Baloo 2', 'Work Sans', system-ui, sans-serif; }
+  html[data-theme="kawaii"] .note-card,
+  html[data-theme="kawaii"] .toolbtn,
+  html[data-theme="kawaii"] #new-btn,
+  html[data-theme="kawaii"] .tag-chip,
+  html[data-theme="kawaii"] #search,
+  html[data-theme="kawaii"] #ac-box,
+  html[data-theme="kawaii"] #prefs-card,
+  html[data-theme="kawaii"] .trash-item { border-radius: 16px; }
+  html[data-theme="kawaii"] #new-btn { box-shadow: 0 3px 0 var(--accent-dark); }
+  html[data-theme="kawaii"] #new-btn:active { box-shadow: 0 1px 0 var(--accent-dark); transform: translateY(2px); }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Work Sans', system-ui, sans-serif;
+  }
+  #app { display: flex; height: 100vh; min-height: 480px; }
+
+  /* Sidebar */
+  #sidebar {
+    width: 280px; min-width: 220px; flex-shrink: 0;
+    border-right: 1px solid var(--rule);
+    display: flex; flex-direction: column;
+    background: var(--paper);
+  }
+  #sidebar-head {
+    padding: 18px 16px 12px;
+    border-bottom: 1px solid var(--rule);
+  }
+  #sidebar-head h1 {
+    font-size: 20px; font-weight: 700; margin: 0 0 12px;
+    letter-spacing: 0.2px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  #theme-toggle {
+    background: none; border: 1px solid var(--rule); border-radius: 100px;
+    width: 28px; height: 28px; font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink);
+  }
+  #theme-toggle:hover { background: var(--link-bg); }
+  #search {
+    width: 100%; padding: 8px 10px;
+    border: 1px solid var(--rule); border-radius: 6px;
+    background: var(--card); color: var(--ink);
+    font-family: inherit; font-size: 13px;
+  }
+  #search:focus { outline: none; border-color: var(--accent); }
+  #new-btn {
+    margin-top: 10px; width: 100%; padding: 8px 10px;
+    background: var(--accent); color: #fff; border: none;
+    border-radius: 6px; font-family: inherit; font-size: 13px; font-weight: 500;
+    cursor: pointer;
+  }
+  #new-btn:hover { background: var(--accent-dark); }
+
+  #tags-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .tag-chip {
+    font-size: 11px; padding: 3px 9px; border-radius: 100px;
+    background: var(--tag-bg); color: var(--tag); cursor: pointer;
+    border: 1px solid transparent; white-space: nowrap;
+  }
+  .tag-chip.active { background: var(--tag); color: #fff; }
+  #filter-banner {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 11.5px; color: var(--graphite); padding: 8px 12px 0;
+  }
+  #filter-banner a { color: var(--accent); cursor: pointer; text-decoration: none; }
+
+  #note-list { flex: 1; overflow-y: auto; padding: 10px; }
+  .note-card {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule);
+    border-radius: 4px;
+    padding: 10px 30px 10px 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.12s ease;
+  }
+  .note-card:hover { border-left-color: var(--accent); }
+  .note-card.active { border-left-color: var(--accent); background: color-mix(in srgb, var(--card) 85%, var(--accent) 5%); }
+  .note-card .pin-star {
+    position: absolute; top: 8px; right: 8px;
+    font-size: 15px; color: var(--rule); cursor: pointer; line-height: 1;
+  }
+  .note-card .pin-star:hover { color: var(--accent); }
+  .note-card .pin-star.pinned { color: var(--accent); }
+  .card-title-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .card-title-row .color-dot {
+    width: 10px; height: 10px; min-width: 10px; border-radius: 50%;
+    border: 1.5px solid var(--rule); cursor: pointer;
+  }
+  .note-card .t {
+    font-weight: 600; font-size: 14.5px;
+    margin: 0; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .note-card .p {
+    font-size: 12px; color: var(--graphite); margin: 0;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; line-height: 1.4;
+  }
+  .note-card .tag-row { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .note-card .tag-row span {
+    font-size: 10px; color: var(--tag); background: var(--tag-bg);
+    padding: 1px 6px; border-radius: 100px;
+  }
+  .note-card .d { font-size: 10.5px; color: var(--graphite); margin-top: 6px; opacity: 0.75; }
+  #empty-list { padding: 24px 12px; color: var(--graphite); font-size: 13px; text-align: center; }
+
+  /* Color filter chips */
+  #colors-bar { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; align-items: center; }
+  .color-filter-btn {
+    width: 18px; height: 18px; border-radius: 50%; cursor: pointer;
+    border: 2px solid transparent; padding: 0; box-sizing: content-box;
+  }
+  .color-filter-btn.active { border-color: var(--ink); }
+  .color-filter-btn.clear-colors {
+    width: 18px; height: 18px; border-radius: 50%; border: 1.5px dashed var(--rule);
+    background: transparent; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--graphite); cursor: pointer;
+  }
+
+  /* Folder chips */
+  #folders-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .folder-chip { background: var(--paper); border: 1px solid var(--rule); color: var(--graphite); display: inline-flex; align-items: center; gap: 4px; }
+  .folder-chip.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .folder-chip.new-folder { border-style: dashed; }
+  .folder-chip-menu-btn {
+    opacity: 0.55; padding: 0 2px; border-radius: 4px; font-size: 12px; line-height: 1;
+  }
+  .folder-chip-menu-btn:hover { opacity: 1; background: rgba(0,0,0,0.1); }
+  #folder-actions-popover {
+    position: fixed; z-index: 60;
+    background: var(--card); border: 1px solid var(--rule); border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+    padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 160px;
+  }
+  #folder-actions-popover button {
+    text-align: left; padding: 6px 8px; border-radius: 6px; font-size: 12.5px;
+    background: transparent; border: none; color: var(--ink); cursor: pointer;
+  }
+  #folder-actions-popover button:hover { background: var(--paper); }
+  #folder-actions-popover button.danger { color: #d1453b; }
+
+  /* Color / folder popovers */
+  #color-popover, #folder-popover {
+    position: fixed; z-index: 60;
+    background: var(--card); border: 1px solid var(--rule); border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+    padding: 8px; display: flex; gap: 6px; align-items: center;
+  }
+  #folder-popover { flex-direction: column; align-items: stretch; min-width: 180px; }
+  .color-swatch-btn {
+    width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+    border: 1px solid rgba(0,0,0,0.15);
+  }
+  .color-swatch-btn.clear {
+    background: var(--paper); display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--graphite);
+  }
+  #folder-popover input {
+    border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px;
+    font-family: inherit; font-size: 12.5px; background: var(--paper); color: var(--ink);
+    margin-bottom: 8px;
+  }
+
+  .trash-badge {
+    margin-left: auto; background: var(--graphite); color: var(--paper);
+    font-size: 10.5px; font-weight: 700; line-height: 1; border-radius: 999px;
+    padding: 2px 6px; min-width: 8px; text-align: center;
+  }
+  #trash-link.footer-link { display: flex; align-items: center; }
+
+  /* Update toast */
+  #update-toast {
+    position: fixed; right: 18px; bottom: 18px; z-index: 90;
+    background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
+    padding: 14px 16px; box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+    max-width: 280px; font-size: 13px;
+  }
+  #update-toast .t { font-weight: 700; margin-bottom: 4px; }
+  #update-toast .n { color: var(--graphite); font-size: 12px; max-height: 80px; overflow-y: auto; }
+  #update-toast .actions { margin-top: 10px; display: flex; gap: 8px; }
+
+  /* Sidebar footer — utility links */
+  #sidebar-footer {
+    border-top: 1px solid var(--rule);
+    padding: 6px;
+    display: flex; flex-direction: column; gap: 1px;
+    flex-shrink: 0;
+  }
+  .footer-link {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 6px;
+    font-size: 12.5px; color: var(--graphite); text-decoration: none;
+    cursor: pointer; background: none; border: none; text-align: left;
+    font-family: inherit; width: 100%;
+  }
+  .footer-link:hover { background: var(--link-bg); color: var(--ink); }
+  .footer-link .icon { width: 16px; text-align: center; font-size: 13px; flex-shrink: 0; }
+
+  /* Main */
+  #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #toolbar {
+    padding: 12px 24px; border-bottom: 1px solid var(--rule);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  #title-input {
+    font-size: 22px; font-weight: 700;
+    border: none; background: transparent; color: var(--ink);
+    flex: 1; min-width: 0; padding: 4px 0;
+  }
+  #title-input:focus { outline: none; }
+  #title-input::placeholder { color: var(--graphite); opacity: 0.6; }
+  .toolbtn {
+    padding: 6px 12px; border: 1px solid var(--rule); background: var(--card);
+    border-radius: 6px; font-family: inherit; font-size: 12.5px; cursor: pointer;
+    color: var(--ink); white-space: nowrap;
+  }
+  .toolbtn.active-mode { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .toolbtn.danger { color: var(--accent); }
+  .toolbtn.danger:hover { background: var(--link-bg); }
+
+  #editor-wrap { flex: 1; display: flex; overflow: hidden; position: relative; }
+  #editor, #preview {
+    flex: 1; overflow-y: auto; padding: 20px 24px;
+  }
+  #editor {
+    border: none; resize: none; background: var(--paper);
+    font-family: 'ui-monospace', 'SF Mono', Menlo, monospace;
+    font-size: 14px; line-height: 1.65; color: var(--ink);
+  }
+  #editor:focus { outline: none; }
+  #preview { background: var(--card); border-left: 1px solid var(--rule); }
+  #preview p { line-height: 1.65; max-width: 66ch; }
+  #preview code { background: var(--link-bg); padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
+  #preview blockquote {
+    margin: 16px 0; padding: 10px 20px;
+    border-left: 4px solid var(--accent);
+    background: var(--link-bg);
+    border-radius: 0 6px 6px 0;
+    color: var(--graphite);
+    font-style: italic;
+  }
+  #preview blockquote p { margin: 8px 0; }
+  #preview blockquote p:first-child { margin-top: 0; }
+  #preview blockquote p:last-child { margin-bottom: 0; }
+  #preview pre { background: var(--paper); padding: 12px 14px; border-radius: 6px; overflow-x: auto; }
+  #preview pre code { background: none; padding: 0; }
+  #preview li.task-list-item { list-style: none; margin-left: -22px; }
+  #preview li.task-list-item input[type="checkbox"] {
+    margin-right: 8px; accent-color: var(--accent); cursor: pointer;
+    width: 14px; height: 14px; vertical-align: middle;
+  }
+  #preview a.wikilink {
+    color: var(--link); background: var(--link-bg);
+    padding: 1px 6px; border-radius: 4px; text-decoration: none;
+    font-weight: 500; cursor: pointer;
+  }
+  #preview a.wikilink.missing { border: 1px dashed var(--graphite); background: none; color: var(--graphite); }
+  #preview a.wikilink:hover { background: var(--rule); }
+
+  /* Column breaks */
+  #preview .col-row { display: flex; gap: 0; align-items: flex-start; border-top: 1px solid var(--rule-faint); padding-top: 18px; margin-top: 4px; }
+  #preview .col-block { flex: 1; min-width: 0; }
+  #preview .col-block > *:first-child,
+  #preview .subcol-block > *:first-child { margin-top: 0 !important; }
+  #preview .col-row > .col-block:not(:first-child) { border-left: 1px solid var(--rule); padding-left: 32px; margin-left: 32px; }
+  #preview .subcol-row { display: flex; gap: 0; align-items: flex-start; }
+  #preview .col-block > * + .subcol-row { border-top: 1px solid var(--rule-faint); padding-top: 14px; margin-top: 12px; }
+  #preview .subcol-row > .subcol-block { flex: 1; min-width: 0; }
+  #preview .subcol-row > .subcol-block:not(:first-child) { border-left: 1px solid var(--rule); padding-left: 20px; margin-left: 20px; }
+
+  /* Collapsible headings */
+  #preview .heading-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; margin-right: 6px; cursor: pointer;
+    color: var(--accent); font-size: 12px; user-select: none; vertical-align: middle;
+    background: var(--tag-bg); border-radius: 6px; flex-shrink: 0;
+  }
+  #preview .heading-toggle:hover { background: var(--rule); }
+  #preview .heading-group.collapsed { display: none; }
+
+  #backlinks {
+    border-top: 1px solid var(--rule); padding: 14px 24px 18px;
+    font-size: 12.5px; color: var(--graphite); flex-shrink: 0;
+  }
+  #backlinks .lbl { font-weight: 600; color: var(--ink); margin-right: 8px; }
+  #backlinks a { color: var(--link); cursor: pointer; margin-right: 10px; text-decoration: none; }
+  #backlinks a:hover { text-decoration: underline; }
+
+  #tags-editor {
+    border-top: 1px solid var(--rule); padding: 12px 24px;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+    flex-shrink: 0;
+  }
+  #tags-editor .lbl { font-weight: 600; font-size: 12.5px; color: var(--ink); margin-right: 4px; }
+  .tag-chip.removable { display: inline-flex; align-items: center; gap: 5px; }
+  .tag-chip.removable .x { cursor: pointer; opacity: 0.6; font-size: 12px; }
+  .tag-chip.removable .x:hover { opacity: 1; }
+  #tag-input {
+    border: 1px dashed var(--rule); background: none; color: var(--graphite);
+    font-family: inherit; font-size: 11.5px; padding: 3px 9px; border-radius: 100px;
+    width: 100px;
+  }
+  #tag-input:focus { outline: none; border-color: var(--accent); color: var(--ink); }
+
+  #placeholder {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: var(--graphite); font-size: 16px;
+  }
+
+  /* Home dashboard */
+  #home-view { flex: 1; overflow-y: auto; padding: 28px 32px 44px; animation: home-fade-in 0.25s ease; }
+  @keyframes home-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  #home-date { font-size: 12.5px; color: var(--graphite); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  #home-title { font-size: 26px; font-weight: 700; margin-bottom: 22px; color: var(--ink); }
+  .home-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 30px; }
+  .home-stat-card {
+    background: var(--card); border: 1px solid var(--rule); border-radius: 12px;
+    padding: 14px 16px; transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .home-stat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+  .home-stat-card .icon { font-size: 15px; opacity: 0.75; margin-bottom: 6px; }
+  .home-stat-card .n { font-size: 25px; font-weight: 700; line-height: 1.1; color: var(--accent); }
+  .home-stat-card .l { font-size: 11.5px; color: var(--graphite); margin-top: 4px; }
+  .home-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+  .home-section {
+    background: var(--card); border: 1px solid var(--rule); border-radius: 12px;
+    padding: 14px 16px 10px;
+  }
+  .home-section h3 { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--graphite); margin-bottom: 8px; font-weight: 600; }
+  .home-list { display: flex; flex-direction: column; gap: 2px; }
+  .home-list-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 7px 8px; margin: 0 -8px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    transition: background 0.1s ease;
+  }
+  .home-list-item:hover { background: var(--link-bg); }
+  .home-list-item .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; display: flex; align-items: center; }
+  .home-list-item .count { color: var(--graphite); font-size: 11.5px; flex-shrink: 0; }
+  .home-empty { color: var(--graphite); font-size: 13px; padding: 6px 0; }
+  .home-color-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 7px; flex-shrink: 0;
+  }
+  .home-color-row { display: flex; flex-wrap: wrap; gap: 10px; padding: 4px 0 6px; }
+  .home-color-swatch {
+    width: 30px; height: 30px; border-radius: 50%; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.12);
+    transition: transform 0.1s ease;
+  }
+  .home-color-swatch:hover { transform: scale(1.1); }
+  .home-color-swatch-count {
+    font-size: 11px; font-weight: 700; color: rgba(0,0,0,0.55);
+    text-shadow: 0 1px 1px rgba(255,255,255,0.35);
+  }
+
+  /* Trash */
+  #trash-list { flex: 1; overflow-y: auto; padding: 20px 24px; }
+  .trash-item {
+    background: var(--card); border: 1px solid var(--rule); border-radius: 6px;
+    padding: 10px 14px; margin-bottom: 8px;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .trash-item .t { font-weight: 600; font-size: 14px; }
+  .trash-item .p { font-size: 12px; color: var(--graphite); margin-top: 2px; }
+  .trash-item .actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  /* Autocomplete */
+  #ac-box {
+    position: fixed; z-index: 50;
+    background: var(--card); border: 1px solid var(--rule); border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+    max-height: 220px; overflow-y: auto; min-width: 200px;
+  }
+  .ac-item { padding: 7px 12px; font-size: 13px; cursor: pointer; }
+  .ac-item.selected, .ac-item:hover { background: var(--link-bg); }
+
+  #preview img { max-width: 100%; border-radius: 8px; margin: 10px 0; display: block; }
+
+  /* Preferences modal */
+  #prefs-backdrop {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.35);
+    align-items: center; justify-content: center;
+  }
+  #prefs-backdrop.open { display: flex; }
+  #prefs-card {
+    background: var(--card); border-radius: 10px; padding: 24px;
+    width: 420px; max-width: 90vw;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+  }
+  #prefs-card h2 { margin: 0 0 16px; font-size: 18px; }
+  #prefs-card label { font-size: 12px; font-weight: 600; color: var(--graphite); display: block; margin-bottom: 6px; }
+  #prefs-path {
+    font-size: 12.5px; font-family: 'ui-monospace', 'SF Mono', Menlo, monospace;
+    background: var(--paper); border: 1px solid var(--rule); border-radius: 6px;
+    padding: 8px 10px; margin-bottom: 14px; word-break: break-all; color: var(--ink);
+  }
+  #prefs-buttons { display: flex; gap: 8px; margin-bottom: 16px; }
+  .prefs-hint { font-size: 11.5px; color: var(--graphite); line-height: 1.5; margin: 0 0 18px; }
+  #theme-swatches { display: flex; gap: 8px; }
+  .theme-swatch {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 10px 6px; border: 1px solid var(--rule); border-radius: 8px;
+    background: var(--paper); color: var(--ink); font-family: inherit; font-size: 11.5px;
+    cursor: pointer;
+  }
+  .theme-swatch.active { border-color: var(--accent); border-width: 2px; }
+  .theme-swatch .swatch-dot { width: 20px; height: 20px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
+  .swatch-light { background: linear-gradient(135deg, #F6F3EA 50%, #A6403D 50%); }
+  .swatch-dark { background: linear-gradient(135deg, #1E1C18 50%, #E0776A 50%); }
+  .swatch-pastel { background: linear-gradient(135deg, #FBF3F8 50%, #D97AA6 50%); }
+  .swatch-kawaii { background: linear-gradient(135deg, #FFEFF6 50%, #FF6FA5 50%); }
+
+  #back-btn { display: none; }
+
+  @media (max-width: 700px) {
+    #sidebar { width: 100%; border-right: none; }
+    #app.view-detail #sidebar { display: none; }
+    #app.view-list #main { display: none; }
+    #back-btn { display: inline-block; }
+    #toolbar { padding: 12px 16px; }
+    #title-input { font-size: 19px; flex-basis: 100%; order: -1; margin-bottom: 6px; }
+    #editor, #preview { padding: 16px; }
+    #backlinks { padding: 12px 16px 16px; }
+    #preview .col-row, #preview .subcol-row { flex-direction: column; }
+    #preview .col-row > .col-block:not(:first-child) { border-left: none; padding-left: 0; margin-left: 0; border-top: 1px dashed var(--rule); padding-top: 16px; margin-top: 16px; }
+    #preview .subcol-row > .subcol-block:not(:first-child) { border-left: none; padding-left: 0; margin-left: 0; border-top: 1px dashed var(--rule); padding-top: 14px; margin-top: 14px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <div id="sidebar-head">
+      <h1>MeglaNote <button id="theme-toggle" title="Cycle theme (light / dark / pastel / kawaii)">🌙</button></h1>
+      <input id="search" placeholder="Search notes… (⌘F)" />
+      <button id="new-btn">+ New note (⌘N)</button>
+      <div id="tags-bar"></div>
+      <div id="folders-bar"></div>
+      <div id="colors-bar"></div>
+    </div>
+    <div id="filter-banner" style="display:none;">
+      <span></span><a id="clear-filter">Clear</a>
+    </div>
+    <div id="note-list"></div>
+    <div id="sidebar-footer">
+      <a href="#" id="home-link" class="footer-link"><span class="icon">🏠</span>Home</a>
+      <a href="#" id="cheatsheet-link" class="footer-link"><span class="icon">📘</span>Markdown cheat sheet</a>
+      <a href="#" id="trash-link" class="footer-link"><span class="icon">🗑</span>Trash<span id="trash-badge" class="trash-badge" hidden></span></a>
+      <a href="#" id="reveal-link" class="footer-link"><span class="icon">📂</span>Show notes in Finder</a>
+      <a href="#" id="check-update-link" class="footer-link"><span class="icon">⬆️</span>Check for Updates</a>
+      <a href="#" id="prefs-link" class="footer-link"><span class="icon">⚙️</span>Preferences</a>
+    </div>
+  </div>
+  <div id="main"></div>
+</div>
+
+<div id="prefs-backdrop">
+  <div id="prefs-card">
+    <h2>Preferences</h2>
+    <label>Notes folder</label>
+    <div id="prefs-path">…</div>
+    <div id="prefs-buttons">
+      <button class="toolbtn" id="prefs-choose">Choose Folder…</button>
+      <button class="toolbtn" id="prefs-default">Use Default</button>
+    </div>
+    <p class="prefs-hint">Tip: choose a folder inside iCloud Drive (e.g. one under "Mobile Documents") to sync your notes across your Macs. Changing this only points the app at the new folder — it won't move your existing notes for you.</p>
+    <label>Theme</label>
+    <div id="theme-swatches">
+      <button class="theme-swatch" data-theme="light" title="Light"><span class="swatch-dot swatch-light"></span>Light</button>
+      <button class="theme-swatch" data-theme="dark" title="Dark"><span class="swatch-dot swatch-dark"></span>Dark</button>
+      <button class="theme-swatch" data-theme="pastel" title="Pastel"><span class="swatch-dot swatch-pastel"></span>Pastel</button>
+      <button class="theme-swatch" data-theme="kawaii" title="Kawaii"><span class="swatch-dot swatch-kawaii"></span>Kawaii</button>
+    </div>
+    <button class="toolbtn active-mode" id="prefs-close" style="margin-top:18px;">Close</button>
+  </div>
+</div>
+
+<script>
+let notes = {};       // id -> {id, title, body, updatedAt}
+let trashList = [];
+let trashCount = 0;
+let activeId = null;
+let mode = 'preview';  // 'edit' | 'preview'
+let searchTerm = '';
+let activeTagFilter = null;
+let ready = false;
+let view = 'list';    // 'list' | 'detail' — mobile pane control
+let panel = 'note';    // 'note' | 'trash' | 'home' — what #main shows
+let focusTitleOnRender = false;
+let confirmDeleteId = null;
+let purgeConfirmId = null;
+
+const invoke = window.__TAURI__.core.invoke;
+window.notesAPI = {
+  list: () => invoke('list_notes'),
+  listTrash: () => invoke('list_trash'),
+  listFolders: () => invoke('list_folders'),
+  createFolder: (name) => invoke('create_folder', { name }),
+  renameFolder: (oldName, newName) => invoke('rename_folder', { oldName, newName }),
+  deleteFolder: (name) => invoke('delete_folder', { name }),
+  save: (id, title, body, tags, pinned, color, folder) => invoke('save_note', {
+    oldId: id, title, body, tags: tags || [], pinned: !!pinned, color: color || '', folder: folder || ''
+  }),
+  delete: (id) => invoke('delete_note', { id }),
+  restore: (id) => invoke('restore_note', { id }),
+  purge: (id) => invoke('purge_note', { id }),
+  revealFolder: () => invoke('reveal_folder'),
+  loadSettings: () => invoke('load_settings'),
+  saveSettings: (json) => invoke('save_settings', { json }),
+  getNotesDir: () => invoke('get_notes_dir'),
+  setNotesDir: (path) => invoke('set_notes_dir', { path }),
+  pickNotesFolder: () => invoke('pick_notes_folder'),
+  saveImage: (name, bytes) => invoke('save_image', { name, bytes }),
+  getPendingClip: () => invoke('get_pending_clip'),
+  checkForUpdate: () => invoke('check_for_update'),
+  installUpdate: () => invoke('install_update')
+};
+
+const NOTE_COLORS = [
+  { id: 'red', hex: '#FF3B30' },
+  { id: 'orange', hex: '#FF9500' },
+  { id: 'yellow', hex: '#FFCC00' },
+  { id: 'green', hex: '#34C759' },
+  { id: 'blue', hex: '#007AFF' },
+  { id: 'purple', hex: '#AF52DE' },
+  { id: 'gray', hex: '#8E8E93' }
+];
+const COLOR_HEX = Object.fromEntries(NOTE_COLORS.map(c => [c.id, c.hex]));
+
+let notesDirPath = '';
+let folderList = [];
+let activeFolderFilter = null; // null = All, '' = Unfiled, else folder name
+let activeColorFilter = null; // null = any color, else a NOTE_COLORS id
+
+function uid() { return 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+const THEME_ICONS = { light: '☀️', dark: '🌙', pastel: '🌸', kawaii: '🎀' };
+const THEME_ORDER = ['light', 'dark', 'pastel', 'kawaii'];
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('theme-toggle').textContent = THEME_ICONS[theme] || '☀️';
+  document.querySelectorAll('.theme-swatch').forEach(el => {
+    el.classList.toggle('active', el.dataset.theme === theme);
+  });
+  window.notesAPI.saveSettings(JSON.stringify({ theme }));
+}
+
+async function loadTheme() {
+  let settings = {};
+  try { settings = JSON.parse(await window.notesAPI.loadSettings() || '{}'); } catch (e) {}
+  const theme = THEME_ORDER.includes(settings.theme) ? settings.theme : 'light';
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('theme-toggle').textContent = THEME_ICONS[theme] || '☀️';
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  const idx = THEME_ORDER.indexOf(current);
+  const next = THEME_ORDER[(idx + 1) % THEME_ORDER.length];
+  applyTheme(next);
+}
+
+async function loadNotes() {
+  notesDirPath = await window.notesAPI.getNotesDir();
+  folderList = await window.notesAPI.listFolders();
+  const list = await window.notesAPI.list();
+  notes = {};
+  list.forEach(n => { notes[n.id] = n; });
+  if (Object.keys(notes).length === 0) {
+    seedNotes();
+    for (const n of Object.values(notes)) {
+      const newId = await window.notesAPI.save(n.id, n.title, n.body, n.tags, n.pinned, n.color, n.folder);
+      if (newId !== n.id) { delete notes[n.id]; n.id = newId; notes[newId] = n; }
+    }
+    if (Object.keys(notes).length) activeId = Object.keys(notes)[0];
+  }
+  ready = true;
+  if (!activeId) {
+    const ids = Object.keys(notes);
+    if (ids.length) activeId = ids.sort((a,b)=>notes[b].updatedAt - notes[a].updatedAt)[0];
+  }
+  render();
+  refreshTrashCount();
+}
+
+async function refreshFolders() {
+  folderList = await window.notesAPI.listFolders();
+}
+
+async function loadTrash() {
+  trashList = await window.notesAPI.listTrash();
+  trashCount = trashList.length;
+  updateTrashBadge();
+}
+
+async function refreshTrashCount() {
+  trashCount = (await window.notesAPI.listTrash()).length;
+  updateTrashBadge();
+}
+
+function updateTrashBadge() {
+  const el = document.getElementById('trash-badge');
+  if (!el) return;
+  if (trashCount > 0) {
+    el.textContent = trashCount > 99 ? '99+' : String(trashCount);
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+  }
+}
+
+let saveTimer = null;
+function saveNoteToDisk(id) {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    const n = notes[id];
+    if (!n) return;
+    const newId = await window.notesAPI.save(n.id, n.title, n.body, n.tags, n.pinned, n.color, n.folder);
+    if (newId && newId !== id && notes[id]) {
+      delete notes[id];
+      n.id = newId;
+      notes[newId] = n;
+      if (activeId === id) activeId = newId;
+      // Only refresh the sidebar (a separate part of the page) — never
+      // re-render the note toolbar/title field itself here, or a rename
+      // mid-keystroke would recreate the input and steal focus.
+      renderSidebar();
+    }
+  }, 900);
+}
+
+function seedNotes() {
+  const now = Date.now();
+  const a = uid(), b = uid();
+  notes[a] = {
+    id: a,
+    title: 'Welcome to MeglaNote',
+    body: `This is a small **Zettelkasten-style** notes app.\n\n- Write in Markdown\n- Link notes with [[double brackets]], like this: [[Getting started]] — type [[ in the editor for autocomplete\n- Tags live in their own section at the bottom of a note, not mixed into the writing\n- Click the arrow next to a heading to collapse it\n- Use the column-break buttons while editing to lay out a note in columns, and 1-column section to drop back to normal in between\n- Drag or paste an image straight into a note\n- Star a note to pin it to the top of the list\n- Flag a note with a color from the toolbar or the dot on its card\n- Organize notes into folders — see the sidebar below the tags\n- Deleted notes sit in Trash for 14 days before being cleared automatically\n- Change where notes are saved (including into iCloud Drive) from Preferences\n- ⌘N new note, ⌘F search, ⌘B bold, ⌘I italic\n- This note's file is named to match its title, and renames itself if you change the title\n\nTry editing this note, or click the link above.`,
+    tags: ['welcome'],
+    pinned: true,
+    color: '',
+    folder: '',
+    updatedAt: now
+  };
+  notes[b] = {
+    id: b,
+    title: 'Getting started',
+    body: `Some things worth trying:\n\n1. Hit **+ New note** and give it a title\n2. Reference another note with \`[[\` — a suggestion list pops up as you type\n3. Add tags in the Tags section at the bottom, then click one (or a sidebar chip) to filter\n4. Use the Edit / Preview toggle, and try a column break on a long note\n\nLinked back from [[Welcome to MeglaNote]].`,
+    tags: ['welcome'],
+    pinned: false,
+    color: '',
+    folder: '',
+    updatedAt: now - 1000
+  };
+}
+
+function findByTitle(title) {
+  const norm = title.trim().toLowerCase();
+  return Object.values(notes).find(n => n.title.trim().toLowerCase() === norm);
+}
+
+function getBacklinks(note) {
+  if (!note) return [];
+  const norm = note.title.trim().toLowerCase();
+  return Object.values(notes).filter(n =>
+    n.id !== note.id &&
+    extractLinks(n.body).some(l => l.trim().toLowerCase() === norm)
+  );
+}
+
+function extractLinks(body) {
+  const re = /\[\[([^\]]+)\]\]/g;
+  const out = [];
+  let m;
+  while ((m = re.exec(body || '')) !== null) out.push(m[1]);
+  return out;
+}
+
+function allTags() {
+  const set = new Set();
+  Object.values(notes).forEach(n => (n.tags || []).forEach(t => set.add(t)));
+  return [...set].sort((a,b) => a.localeCompare(b));
+}
+
+function toggleCheckbox(index) {
+  if (!activeId || !notes[activeId]) return;
+  const lines = notes[activeId].body.split('\n');
+  const re = /^(\s*[-*+]\s+\[)([ xX])(\]\s*.*)$/;
+  let count = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(re);
+    if (m) {
+      count++;
+      if (count === index) {
+        const flipped = (m[2] === ' ') ? 'x' : ' ';
+        lines[i] = m[1] + flipped + m[3];
+        break;
+      }
+    }
+  }
+  updateActive('body', lines.join('\n'));
+  renderMain();
+  renderSidebar();
+}
+
+function renderMarkdown(body) {
+  const withMarks = (body || '').replace(/\[\[([^\]]+)\]\]/g, (_, title) => {
+    const exists = !!findByTitle(title);
+    const cls = exists ? 'wikilink' : 'wikilink missing';
+    return `<a class="${cls}" data-title="${title.replace(/"/g,'&quot;')}">${title}</a>`;
+  });
+  return marked.parse(withMarks);
+}
+
+/* Split `text` on lines that are exactly `marker` (whitespace-trimmed). */
+function splitOnMarker(text, marker) {
+  const re = new RegExp('^[ \\t]*' + marker.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '[ \\t]*$', 'm');
+  const parts = [];
+  let rest = text;
+  let m;
+  while ((m = rest.match(re))) {
+    parts.push(rest.slice(0, m.index));
+    rest = rest.slice(m.index + m[0].length).replace(/^\n/, '');
+  }
+  parts.push(rest);
+  return parts;
+}
+
+/* Renders a note body, honoring %%col%% / %%subcol%% / %%endcol%% markers.
+   %%endcol%% ends the current column layout — content after it (and before
+   any further %%col%%) renders as normal single-column flow. */
+function renderColumned(body) {
+  const endPieces = splitOnMarker(body || '', '%%endcol%%');
+  return endPieces.map(renderPieceMaybeColumns).join('');
+}
+
+function renderPieceMaybeColumns(piece) {
+  const colSegments = splitOnMarker(piece, '%%col%%');
+  if (colSegments.length <= 1) {
+    return renderMarkdown(piece);
+  }
+  const colsHtml = colSegments.map(seg => {
+    const subSegments = splitOnMarker(seg, '%%subcol%%');
+    if (subSegments.length <= 1) {
+      return `<div class="col-block">${renderMarkdown(seg)}</div>`;
+    }
+    const subHtml = subSegments.map(sub => `<div class="subcol-block">${renderMarkdown(sub)}</div>`).join('');
+    return `<div class="col-block"><div class="subcol-row">${subHtml}</div></div>`;
+  }).join('');
+  return `<div class="col-row">${colsHtml}</div>`;
+}
+
+/* Wraps each heading + its following content into a collapsible group,
+   scoped to the direct children of `container` only. Every heading gets
+   a toggle, even ones with nothing following them in that container. */
+function makeHeadingsCollapsible(container) {
+  const children = Array.from(container.children);
+  let i = 0;
+  while (i < children.length) {
+    const el = children[i];
+    const m = el.tagName.match(/^H([1-6])$/);
+    if (!m) { i++; continue; }
+    const level = parseInt(m[1], 10);
+    const group = [];
+    let j = i + 1;
+    while (j < children.length) {
+      const sm = children[j].tagName.match(/^H([1-6])$/);
+      if (sm && parseInt(sm[1], 10) <= level) break;
+      group.push(children[j]);
+      j++;
+    }
+    const wrapper = document.createElement('div');
+    wrapper.className = 'heading-group';
+    if (group.length) {
+      el.parentNode.insertBefore(wrapper, group[0]);
+      group.forEach(g => wrapper.appendChild(g));
+    } else {
+      el.parentNode.insertBefore(wrapper, el.nextSibling);
+    }
+    const toggle = document.createElement('span');
+    toggle.className = 'heading-toggle';
+    toggle.textContent = '▾';
+    el.prepend(toggle);
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const collapsed = wrapper.classList.toggle('collapsed');
+      toggle.textContent = collapsed ? '▸' : '▾';
+    });
+    i = j;
+  }
+}
+
+/* If a .col-block's content starts with a subcol-row whose very first
+   element is a heading, move that heading out to sit above the whole
+   subcol-row (as a direct child of the col-block). This makes the
+   heading span the full column width, and means collapsing it hides
+   every sub-column beneath it, not just the one it was written in. */
+function promoteLeadingHeadings(colBlock) {
+  Array.from(colBlock.children).forEach(child => {
+    if (!child.classList.contains('subcol-row')) return;
+    const firstSub = child.firstElementChild;
+    if (!firstSub) return;
+    const firstEl = firstSub.firstElementChild;
+    if (firstEl && /^H[1-6]$/.test(firstEl.tagName)) {
+      colBlock.insertBefore(firstEl, child);
+    }
+  });
+}
+
+function fmtDate(ts) {
+  const d = new Date(ts);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function selectNote(id) {
+  activeId = id;
+  mode = 'preview';
+  view = 'detail';
+  panel = 'note';
+  confirmDeleteId = null;
+  render();
+}
+
+async function createNote(titleText, folderName) {
+  const tempId = uid();
+  notes[tempId] = { id: tempId, title: titleText || '', body: '', tags: [], pinned: false, color: '', folder: folderName || '', updatedAt: Date.now() };
+  activeId = tempId;
+  mode = 'edit';
+  view = 'detail';
+  panel = 'note';
+  focusTitleOnRender = !titleText;
+  render();
+  const newId = await window.notesAPI.save(tempId, notes[tempId].title, notes[tempId].body, notes[tempId].tags, notes[tempId].pinned, notes[tempId].color, notes[tempId].folder);
+  if (newId && newId !== tempId && notes[tempId]) {
+    const n = notes[tempId];
+    delete notes[tempId];
+    n.id = newId;
+    notes[newId] = n;
+    if (activeId === tempId) activeId = newId;
+    renderSidebar();
+  }
+}
+
+async function togglePin(id) {
+  const n = notes[id];
+  if (!n) return;
+  n.pinned = !n.pinned;
+  await window.notesAPI.save(n.id, n.title, n.body, n.tags, n.pinned, n.color, n.folder);
+  renderSidebar();
+  if (activeId === id && panel === 'note') renderMain();
+}
+
+async function setNoteColor(id, color) {
+  const n = notes[id];
+  if (!n) return;
+  const newId = await window.notesAPI.save(n.id, n.title, n.body, n.tags, n.pinned, color, n.folder);
+  n.color = color;
+  if (newId !== id) { delete notes[id]; n.id = newId; notes[newId] = n; if (activeId === id) activeId = newId; }
+  renderSidebar();
+  if (activeId === n.id && panel === 'note') renderMain();
+}
+
+async function setNoteFolder(id, folder) {
+  const n = notes[id];
+  if (!n) return;
+  const newId = await window.notesAPI.save(n.id, n.title, n.body, n.tags, n.pinned, n.color, folder);
+  n.folder = folder;
+  if (newId !== id) { delete notes[id]; n.id = newId; notes[newId] = n; if (activeId === id) activeId = newId; }
+  await refreshFolders();
+  renderSidebar();
+  if (activeId === n.id && panel === 'note') renderMain();
+}
+
+function closeColorPicker() {
+  const el = document.getElementById('color-popover');
+  if (el) el.remove();
+  document.removeEventListener('mousedown', closeColorPickerOnOutsideClick);
+}
+function closeColorPickerOnOutsideClick(e) {
+  const box = document.getElementById('color-popover');
+  if (box && !box.contains(e.target)) closeColorPicker();
+}
+function openColorPicker(anchorEl, noteId) {
+  closeColorPicker();
+  closeFolderPopover();
+  const box = document.createElement('div');
+  box.id = 'color-popover';
+  box.innerHTML = `
+    <button class="color-swatch-btn clear" data-color="" title="No color">✕</button>
+    ${NOTE_COLORS.map(c => `<button class="color-swatch-btn" data-color="${c.id}" style="background:${c.hex}" title="${c.id}"></button>`).join('')}
+  `;
+  document.body.appendChild(box);
+  const rect = anchorEl.getBoundingClientRect();
+  box.style.left = Math.min(rect.left, window.innerWidth - 260) + 'px';
+  box.style.top = (rect.bottom + 6) + 'px';
+  box.querySelectorAll('.color-swatch-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setNoteColor(noteId, btn.dataset.color);
+      closeColorPicker();
+    });
+  });
+  setTimeout(() => document.addEventListener('mousedown', closeColorPickerOnOutsideClick), 0);
+}
+
+function closeFolderPopover() {
+  const el = document.getElementById('folder-popover');
+  if (el) el.remove();
+  document.removeEventListener('mousedown', closeFolderPopoverOnOutsideClick);
+}
+function closeFolderPopoverOnOutsideClick(e) {
+  const box = document.getElementById('folder-popover');
+  if (box && !box.contains(e.target)) closeFolderPopover();
+}
+function openNewFolderPrompt(anchorEl, onCreate, parentPath) {
+  closeColorPicker();
+  closeFolderPopover();
+  const box = document.createElement('div');
+  box.id = 'folder-popover';
+  const prefix = parentPath ? parentPath + '/' : '';
+  box.innerHTML = `
+    <input id="new-folder-input" placeholder="Folder name" value="${escapeHtml(prefix)}" />
+    <button class="toolbtn active-mode" id="new-folder-confirm">Create folder</button>
+  `;
+  document.body.appendChild(box);
+  const rect = anchorEl.getBoundingClientRect();
+  box.style.left = Math.min(rect.left, window.innerWidth - 200) + 'px';
+  box.style.top = (rect.bottom + 6) + 'px';
+  const input = document.getElementById('new-folder-input');
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+  async function confirm() {
+    const name = input.value.trim();
+    if (!name || name === prefix.replace(/\/$/, '')) return;
+    await window.notesAPI.createFolder(name);
+    await refreshFolders();
+    closeFolderPopover();
+    if (onCreate) onCreate(name);
+    else renderSidebar();
+  }
+  document.getElementById('new-folder-confirm').addEventListener('click', confirm);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); confirm(); }
+    if (e.key === 'Escape') closeFolderPopover();
+  });
+  setTimeout(() => document.addEventListener('mousedown', closeFolderPopoverOnOutsideClick), 0);
+}
+
+function closeFolderActionsPopover() {
+  const el = document.getElementById('folder-actions-popover');
+  if (el) el.remove();
+  document.removeEventListener('mousedown', closeFolderActionsPopoverOnOutsideClick);
+}
+function closeFolderActionsPopoverOnOutsideClick(e) {
+  const box = document.getElementById('folder-actions-popover');
+  if (box && !box.contains(e.target)) closeFolderActionsPopover();
+}
+function openFolderActionsMenu(anchorEl, folderName) {
+  closeColorPicker();
+  closeFolderPopover();
+  closeFolderActionsPopover();
+  const box = document.createElement('div');
+  box.id = 'folder-actions-popover';
+  box.innerHTML = `
+    <button id="folder-action-subfolder">New subfolder…</button>
+    <button id="folder-action-rename">Rename folder</button>
+    <button id="folder-action-delete" class="danger">Delete folder</button>
+  `;
+  document.body.appendChild(box);
+  const rect = anchorEl.getBoundingClientRect();
+  box.style.left = Math.min(rect.left, window.innerWidth - 180) + 'px';
+  box.style.top = (rect.bottom + 6) + 'px';
+  document.getElementById('folder-action-subfolder').addEventListener('click', () => {
+    closeFolderActionsPopover();
+    openNewFolderPrompt(anchorEl, null, folderName);
+  });
+  document.getElementById('folder-action-rename').addEventListener('click', () => {
+    closeFolderActionsPopover();
+    openRenameFolderPrompt(anchorEl, folderName);
+  });
+  const deleteBtn = document.getElementById('folder-action-delete');
+  deleteBtn.addEventListener('click', () => {
+    if (deleteBtn.dataset.confirming === 'true') {
+      closeFolderActionsPopover();
+      deleteFolder(folderName);
+    } else {
+      deleteBtn.textContent = 'Confirm delete?';
+      deleteBtn.dataset.confirming = 'true';
+    }
+  });
+  setTimeout(() => document.addEventListener('mousedown', closeFolderActionsPopoverOnOutsideClick), 0);
+}
+function openRenameFolderPrompt(anchorEl, folderName) {
+  closeColorPicker();
+  closeFolderPopover();
+  const box = document.createElement('div');
+  box.id = 'folder-popover';
+  box.innerHTML = `
+    <input id="rename-folder-input" placeholder="Folder name" value="${escapeHtml(folderName)}" />
+    <button class="toolbtn active-mode" id="rename-folder-confirm">Rename folder</button>
+  `;
+  document.body.appendChild(box);
+  const rect = anchorEl.getBoundingClientRect();
+  box.style.left = Math.min(rect.left, window.innerWidth - 200) + 'px';
+  box.style.top = (rect.bottom + 6) + 'px';
+  const input = document.getElementById('rename-folder-input');
+  input.focus();
+  input.select();
+  async function confirm() {
+    const name = input.value.trim();
+    if (!name || name === folderName) { closeFolderPopover(); return; }
+    let newName;
+    try {
+      newName = await window.notesAPI.renameFolder(folderName, name);
+    } catch (e) {
+      alert(typeof e === 'string' ? e : 'Could not rename folder.');
+      return;
+    }
+    if (activeFolderFilter === folderName) activeFolderFilter = newName;
+    closeFolderPopover();
+    await reloadAfterFolderChange();
+  }
+  document.getElementById('rename-folder-confirm').addEventListener('click', confirm);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); confirm(); }
+    if (e.key === 'Escape') closeFolderPopover();
+  });
+  setTimeout(() => document.addEventListener('mousedown', closeFolderPopoverOnOutsideClick), 0);
+}
+async function deleteFolder(folderName) {
+  await window.notesAPI.deleteFolder(folderName);
+  if (activeFolderFilter === folderName) activeFolderFilter = null;
+  await reloadAfterFolderChange();
+  await refreshTrashCount();
+}
+
+function deleteNote(id) {
+  delete notes[id];
+  confirmDeleteId = null;
+  const ids = Object.keys(notes);
+  activeId = ids.length ? ids.sort((a,b)=>notes[b].updatedAt - notes[a].updatedAt)[0] : null;
+  view = 'list';
+  window.notesAPI.delete(id).then(() => refreshTrashCount());
+  render();
+}
+
+async function restoreFromTrash(id) {
+  await window.notesAPI.restore(id);
+  const list = await window.notesAPI.list();
+  notes = {};
+  list.forEach(n => { notes[n.id] = n; });
+  await loadTrash();
+  render();
+}
+
+async function purgeFromTrash(id) {
+  await window.notesAPI.purge(id);
+  purgeConfirmId = null;
+  await loadTrash();
+  render();
+}
+
+function updateActive(field, value) {
+  if (!activeId || !notes[activeId]) return;
+  notes[activeId][field] = value;
+  notes[activeId].updatedAt = Date.now();
+  saveNoteToDisk(activeId);
+}
+
+function render() {
+  document.getElementById('app').className = 'view-' + view;
+  renderSidebar();
+  renderMain();
+}
+
+function renderSidebar() {
+  const list = document.getElementById('note-list');
+  const tagsBar = document.getElementById('tags-bar');
+  const foldersBar = document.getElementById('folders-bar');
+  const banner = document.getElementById('filter-banner');
+
+  const tags = allTags();
+  tagsBar.innerHTML = tags.map(t =>
+    `<span class="tag-chip ${t === activeTagFilter ? 'active' : ''}" data-tag="${t}">#${t}</span>`
+  ).join('');
+  tagsBar.querySelectorAll('.tag-chip').forEach(el => {
+    el.addEventListener('click', () => {
+      activeTagFilter = (activeTagFilter === el.dataset.tag) ? null : el.dataset.tag;
+      renderSidebar();
+    });
+  });
+
+  const folderChips = [
+    { key: null, label: 'All' },
+    { key: '', label: 'Unfiled' },
+    ...folderList.map(f => ({ key: f, label: f }))
+  ];
+  foldersBar.innerHTML = folderChips.map(f => {
+    const managed = f.key !== null && f.key !== ''; // All / Unfiled aren't real folders
+    const menuBtn = managed ? `<span class="folder-chip-menu-btn" data-folder-menu="${escapeHtml(f.key)}">⋯</span>` : '';
+    return `<span class="tag-chip folder-chip ${activeFolderFilter === f.key ? 'active' : ''}" data-folder="${escapeHtml(f.key === null ? '' : f.key)}" data-is-all="${f.key === null}"><span data-folder-select="${escapeHtml(f.key === null ? '' : f.key)}" data-is-all-select="${f.key === null}">📁 ${escapeHtml(f.label)}</span>${menuBtn}</span>`;
+  }).join('') + `<span class="tag-chip folder-chip new-folder" id="new-folder-chip">+ Folder</span>`;
+  foldersBar.querySelectorAll('[data-folder-select]').forEach(el => {
+    el.addEventListener('click', () => {
+      activeFolderFilter = el.dataset.isAllSelect === 'true' ? null : el.dataset.folderSelect;
+      renderSidebar();
+    });
+  });
+  foldersBar.querySelectorAll('[data-folder-menu]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openFolderActionsMenu(e.currentTarget, e.currentTarget.dataset.folderMenu);
+    });
+  });
+  document.getElementById('new-folder-chip').addEventListener('click', (e) => {
+    openNewFolderPrompt(e.currentTarget);
+  });
+
+  const colorsBar = document.getElementById('colors-bar');
+  colorsBar.innerHTML = NOTE_COLORS.map(c =>
+    `<button class="color-filter-btn ${activeColorFilter === c.id ? 'active' : ''}" data-color-filter="${c.id}" style="background:${c.hex}" title="${c.id}"></button>`
+  ).join('') + `<button class="clear-colors" id="clear-color-filter" title="Clear color filter" ${activeColorFilter ? '' : 'hidden'}>✕</button>`;
+  colorsBar.querySelectorAll('[data-color-filter]').forEach(el => {
+    el.addEventListener('click', () => {
+      activeColorFilter = (activeColorFilter === el.dataset.colorFilter) ? null : el.dataset.colorFilter;
+      renderSidebar();
+    });
+  });
+  const clearColorBtn = document.getElementById('clear-color-filter');
+  if (clearColorBtn) {
+    clearColorBtn.addEventListener('click', () => { activeColorFilter = null; renderSidebar(); });
+  }
+
+  if (activeTagFilter || activeColorFilter) {
+    banner.style.display = 'flex';
+    const parts = [];
+    if (activeTagFilter) parts.push(`#${activeTagFilter}`);
+    if (activeColorFilter) parts.push(`${activeColorFilter} notes`);
+    banner.querySelector('span').textContent = `Filtering by ${parts.join(' + ')}`;
+  } else {
+    banner.style.display = 'none';
+  }
+
+  let items = Object.values(notes).sort((a,b) => {
+    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+    return b.updatedAt - a.updatedAt;
+  });
+  if (activeFolderFilter !== null) {
+    items = items.filter(n => (n.folder || '') === activeFolderFilter);
+  }
+  if (activeTagFilter) {
+    items = items.filter(n => (n.tags || []).includes(activeTagFilter));
+  }
+  if (activeColorFilter) {
+    items = items.filter(n => n.color === activeColorFilter);
+  }
+  if (searchTerm.trim()) {
+    const q = searchTerm.trim().toLowerCase();
+    items = items.filter(n => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q));
+  }
+  if (!items.length) {
+    list.innerHTML = `<div id="empty-list">${searchTerm || activeTagFilter || activeColorFilter || activeFolderFilter !== null ? 'No notes match.' : 'No notes yet — create one above.'}</div>`;
+    return;
+  }
+  list.innerHTML = items.map(n => {
+    const tags = (n.tags || []).slice(0, 4);
+    const colorHex = n.color ? COLOR_HEX[n.color] : null;
+    return `
+    <div class="note-card ${n.id === activeId && panel==='note' ? 'active' : ''}" data-id="${n.id}" ${colorHex ? `style="border-left-color:${colorHex};"` : ''}>
+      <span class="pin-star ${n.pinned ? 'pinned' : ''}" data-pin="${n.id}" title="${n.pinned ? 'Unpin' : 'Pin to top'}">${n.pinned ? '★' : '☆'}</span>
+      <div class="card-title-row">
+        <span class="color-dot" data-color-for="${n.id}" style="background:${colorHex || 'transparent'}; border-color:${colorHex || 'var(--rule)'};" title="Set color"></span>
+        <p class="t">${escapeHtml(n.title || 'Untitled')}</p>
+      </div>
+      <p class="p">${escapeHtml((n.body || '').replace(/%%col%%|%%subcol%%|%%endcol%%/g,'').replace(/[#*_\[\]]/g,'').slice(0,140))}</p>
+      ${tags.length ? `<div class="tag-row">${tags.map(t=>`<span>#${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+      <div class="d">${n.folder ? `📁 ${escapeHtml(n.folder)} · ` : ''}${fmtDate(n.updatedAt)}</div>
+    </div>
+  `;
+  }).join('');
+  list.querySelectorAll('.pin-star').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePin(el.dataset.pin);
+    });
+  });
+  list.querySelectorAll('.color-dot').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openColorPicker(el, el.dataset.colorFor);
+    });
+  });
+  list.querySelectorAll('.note-card').forEach(el => {
+    el.addEventListener('click', () => selectNote(el.dataset.id));
+  });
+}
+
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderMain() {
+  if (panel === 'trash') { renderTrash(); return; }
+  if (panel === 'home') { renderHome(); return; }
+  const main = document.getElementById('main');
+  const note = activeId ? notes[activeId] : null;
+  if (!note) {
+    main.innerHTML = `<div id="placeholder">Select a note, or create a new one</div>`;
+    return;
+  }
+  const backlinks = getBacklinks(note);
+  main.innerHTML = `
+    <div id="toolbar">
+      <button class="toolbtn" id="back-btn">&larr; Notes</button>
+      <input id="title-input" placeholder="Untitled" value="${escapeHtml(note.title)}" />
+      <button class="toolbtn ${mode==='edit'?'active-mode':''}" id="edit-toggle">Edit</button>
+      <button class="toolbtn ${mode==='preview'?'active-mode':''}" id="preview-toggle">Preview</button>
+      ${mode === 'edit' ? `
+        <button class="toolbtn" id="quote-btn" title="Format selected line(s) as a quote">❝ Quote</button>
+        <button class="toolbtn" id="col-btn" title="Insert a column break">⫲ Column break</button>
+        <button class="toolbtn" id="subcol-btn" title="Split this column side-by-side into sub-columns">⫶ Sub-column</button>
+        <button class="toolbtn" id="endcol-btn" title="Start a normal single-column section here (can come before another Column break later)">▤ 1-column section</button>
+      ` : ''}
+      <button class="toolbtn" id="pin-btn" title="${note.pinned ? 'Unpin' : 'Pin to top'}">${note.pinned ? '★ Pinned' : '☆ Pin'}</button>
+      <button class="toolbtn" id="color-btn" title="Flag this note with a color">
+        <span style="display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:middle; background:${note.color ? COLOR_HEX[note.color] : 'transparent'}; border:1.5px solid ${note.color ? COLOR_HEX[note.color] : 'var(--rule)'};"></span>Color
+      </button>
+      <select id="folder-select" class="toolbtn" title="Move to folder">
+        <option value="" ${!note.folder ? 'selected' : ''}>📁 Unfiled</option>
+        ${folderList.map(f => `<option value="${escapeHtml(f)}" ${note.folder === f ? 'selected' : ''}>📁 ${escapeHtml(f)}</option>`).join('')}
+        <option value="__new__">+ New folder…</option>
+      </select>
+      <button class="toolbtn danger" id="delete-btn">${confirmDeleteId === note.id ? 'Confirm delete?' : 'Delete'}</button>
+    </div>
+    <div id="editor-wrap">
+      ${mode === 'edit'
+        ? `<textarea id="editor" spellcheck="false">${escapeHtml(note.body)}</textarea>`
+        : `<div id="preview">${renderColumned(note.body) || '<p style="color:var(--graphite)">Nothing here yet. Click Edit to start writing.</p>'}</div>`
+      }
+    </div>
+    <div id="tags-editor">
+      <span class="lbl">Tags</span>
+      ${(note.tags || []).map(t => `<span class="tag-chip removable" data-tag="${escapeHtml(t)}">#${escapeHtml(t)} <span class="x" data-remove-tag="${escapeHtml(t)}">×</span></span>`).join('')}
+      <input id="tag-input" placeholder="+ add tag" />
+    </div>
+    <div id="backlinks">
+      <span class="lbl">Linked from</span>
+      ${backlinks.length
+        ? backlinks.map(n => `<a data-id="${n.id}">${escapeHtml(n.title)}</a>`).join('')
+        : '<span>No notes link here yet</span>'
+      }
+    </div>
+  `;
+
+  document.getElementById('title-input').addEventListener('input', e => {
+    updateActive('title', e.target.value);
+    renderSidebar();
+  });
+  if (focusTitleOnRender) {
+    focusTitleOnRender = false;
+    document.getElementById('title-input').focus();
+  }
+  document.getElementById('back-btn').addEventListener('click', () => { view = 'list'; render(); });
+  document.getElementById('edit-toggle').addEventListener('click', () => { mode = 'edit'; render(); });
+  document.getElementById('preview-toggle').addEventListener('click', () => { mode = 'preview'; render(); });
+  document.getElementById('pin-btn').addEventListener('click', () => togglePin(note.id));
+  document.getElementById('color-btn').addEventListener('click', (e) => openColorPicker(e.currentTarget, note.id));
+  document.getElementById('folder-select').addEventListener('change', (e) => {
+    const val = e.target.value;
+    if (val === '__new__') {
+      openNewFolderPrompt(e.target, (name) => setNoteFolder(note.id, name));
+      e.target.value = note.folder || '';
+    } else {
+      setNoteFolder(note.id, val);
+    }
+  });
+  document.getElementById('delete-btn').addEventListener('click', () => {
+    if (confirmDeleteId === note.id) {
+      deleteNote(note.id);
+    } else {
+      confirmDeleteId = note.id;
+      render();
+    }
+  });
+
+  document.querySelectorAll('#tags-editor .x').forEach(x => {
+    x.addEventListener('click', () => {
+      const tag = x.dataset.removeTag;
+      updateActive('tags', (note.tags || []).filter(t => t !== tag));
+      renderMain();
+      renderSidebar();
+    });
+  });
+  const tagInput = document.getElementById('tag-input');
+  tagInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const raw = tagInput.value.trim().replace(/^#/, '');
+      if (raw && !(note.tags || []).includes(raw)) {
+        updateActive('tags', [...(note.tags || []), raw]);
+        renderMain();
+        renderSidebar();
+        document.getElementById('tag-input').focus();
+      } else {
+        tagInput.value = '';
+      }
+    }
+  });
+
+  if (mode === 'edit') {
+    const ta = document.getElementById('editor');
+    ta.addEventListener('input', () => onEditorInput(ta));
+    ta.addEventListener('keydown', (e) => onEditorKeydown(e, ta));
+    ta.addEventListener('click', () => checkAutocomplete(ta));
+    ta.addEventListener('blur', () => setTimeout(closeAutocomplete, 150));
+    document.getElementById('quote-btn').addEventListener('click', () => quoteSelection(ta));
+    document.getElementById('col-btn').addEventListener('click', () => insertAtCursor(ta, '%%col%%'));
+    document.getElementById('subcol-btn').addEventListener('click', () => insertAtCursor(ta, '%%subcol%%'));
+    document.getElementById('endcol-btn').addEventListener('click', () => insertAtCursor(ta, '%%endcol%%'));
+    ta.addEventListener('dragover', (e) => e.preventDefault());
+    ta.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      const files = Array.from(e.dataTransfer?.files || []).filter(f => f.type.startsWith('image/'));
+      for (const file of files) await insertImage(ta, file);
+    });
+    ta.addEventListener('paste', async (e) => {
+      const items = Array.from(e.clipboardData?.items || []);
+      const imgItem = items.find(i => i.type.startsWith('image/'));
+      if (imgItem) {
+        e.preventDefault();
+        const file = imgItem.getAsFile();
+        if (file) await insertImage(ta, file);
+      }
+    });
+    ta.focus();
+  } else {
+    document.querySelectorAll('#preview a.wikilink').forEach(a => {
+      a.addEventListener('click', () => {
+        const title = a.dataset.title;
+        const existing = findByTitle(title);
+        if (existing) { selectNote(existing.id); }
+        else { createNote(title); }
+      });
+    });
+    document.querySelectorAll('#preview input[type="checkbox"]').forEach((cb, idx) => {
+      cb.disabled = false;
+      cb.addEventListener('change', () => toggleCheckbox(idx));
+    });
+    document.querySelectorAll('#preview .col-block').forEach(promoteLeadingHeadings);
+    document.querySelectorAll('#preview, #preview .col-block, #preview .subcol-block').forEach(makeHeadingsCollapsible);
+    document.querySelectorAll('#preview img').forEach(img => {
+      const src = img.getAttribute('src') || '';
+      if (!/^([a-z][a-z0-9+.-]*:)/i.test(src) && notesDirPath) {
+        img.src = window.__TAURI__.core.convertFileSrc(notesDirPath + '/' + src);
+      }
+    });
+  }
+
+  document.querySelectorAll('#backlinks a[data-id]').forEach(a => {
+    a.addEventListener('click', () => selectNote(a.dataset.id));
+  });
+}
+
+function folderCounts() {
+  const counts = {};
+  Object.values(notes).forEach(n => {
+    const key = n.folder || '';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+}
+
+function tagCounts() {
+  const counts = {};
+  Object.values(notes).forEach(n => (n.tags || []).forEach(t => {
+    counts[t] = (counts[t] || 0) + 1;
+  }));
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+}
+
+function colorCounts() {
+  const counts = {};
+  Object.values(notes).forEach(n => { if (n.color) counts[n.color] = (counts[n.color] || 0) + 1; });
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+}
+
+function renderHome() {
+  const main = document.getElementById('main');
+  const allNotes = Object.values(notes);
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const updatedToday = allNotes.filter(n => n.updatedAt >= startOfToday).length;
+  const pinnedCount = allNotes.filter(n => n.pinned).length;
+  const tags = tagCounts();
+  const folders = folderCounts();
+  const colors = colorCounts();
+  const recent = [...allNotes].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6);
+  const hour = today.getHours();
+  const greeting = hour < 5 ? 'Still up?' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+
+  const stat = (icon, n, l) => `
+    <div class="home-stat-card">
+      <div class="icon">${icon}</div>
+      <div class="n">${n}</div>
+      <div class="l">${l}</div>
+    </div>`;
+
+  const dot = (n) => n.color ? `<span class="home-color-dot" style="background:${COLOR_HEX[n.color]};"></span>` : '';
+
+  const recentHtml = recent.length ? recent.map(n => `
+    <div class="home-list-item" data-open-note="${escapeHtml(n.id)}">
+      <span class="title">${dot(n)}${escapeHtml(n.title || 'Untitled')}</span>
+      <span class="count">${fmtDate(n.updatedAt)}</span>
+    </div>
+  `).join('') : `<div class="home-empty">No notes yet — create one to get started.</div>`;
+
+  const foldersHtml = folders.length ? folders.slice(0, 8).map(([key, count]) => `
+    <div class="home-list-item" data-open-folder="${escapeHtml(key)}">
+      <span class="title">📁 ${escapeHtml(key || 'Unfiled')}</span>
+      <span class="count">${count}</span>
+    </div>
+  `).join('') : `<div class="home-empty">No folders yet.</div>`;
+
+  const tagsHtml = tags.length ? tags.slice(0, 10).map(([tag, count]) => `
+    <div class="home-list-item" data-open-tag="${escapeHtml(tag)}">
+      <span class="title">#${escapeHtml(tag)}</span>
+      <span class="count">${count}</span>
+    </div>
+  `).join('') : `<div class="home-empty">No tags yet.</div>`;
+
+  const colorsHtml = colors.length ? `<div class="home-color-row">${colors.map(([id, count]) => `
+    <button class="home-color-swatch" data-open-color="${id}" style="background:${COLOR_HEX[id]};" title="${id} · ${count}">
+      <span class="home-color-swatch-count">${count}</span>
+    </button>
+  `).join('')}</div>` : `<div class="home-empty">No flagged notes yet.</div>`;
+
+  main.innerHTML = `
+    <div id="home-view">
+      <div id="home-date">${today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
+      <div id="home-title">${greeting}</div>
+      <div class="home-stats">
+        ${stat('📝', allNotes.length, allNotes.length === 1 ? 'Note' : 'Notes')}
+        ${stat('📁', folders.length, folders.length === 1 ? 'Folder' : 'Folders')}
+        ${stat('#', tags.length, tags.length === 1 ? 'Tag' : 'Tags')}
+        ${stat('📌', pinnedCount, 'Pinned')}
+        ${stat('🕐', updatedToday, 'Updated today')}
+        ${stat('🗑', trashCount, 'In Trash')}
+      </div>
+      <div class="home-sections">
+        <div class="home-section">
+          <h3>🕘 Recently updated</h3>
+          <div class="home-list">${recentHtml}</div>
+        </div>
+        <div class="home-section">
+          <h3>📁 Folders</h3>
+          <div class="home-list">${foldersHtml}</div>
+        </div>
+        <div class="home-section">
+          <h3># Tags</h3>
+          <div class="home-list">${tagsHtml}</div>
+        </div>
+        <div class="home-section">
+          <h3>🎨 Colors</h3>
+          ${colorsHtml}
+        </div>
+      </div>
+    </div>
+  `;
+  main.querySelectorAll('[data-open-color]').forEach(el => {
+    el.addEventListener('click', () => {
+      panel = 'note';
+      view = 'list';
+      activeColorFilter = el.dataset.openColor;
+      activeTagFilter = null;
+      activeFolderFilter = null;
+      render();
+    });
+  });
+  document.getElementById('home-view').querySelectorAll('[data-open-note]').forEach(el => {
+    el.addEventListener('click', () => selectNote(el.dataset.openNote));
+  });
+  document.getElementById('home-view').querySelectorAll('[data-open-folder]').forEach(el => {
+    el.addEventListener('click', () => {
+      panel = 'note';
+      view = 'list';
+      activeFolderFilter = el.dataset.openFolder;
+      activeTagFilter = null;
+      activeColorFilter = null;
+      render();
+    });
+  });
+  document.getElementById('home-view').querySelectorAll('[data-open-tag]').forEach(el => {
+    el.addEventListener('click', () => {
+      panel = 'note';
+      view = 'list';
+      activeTagFilter = el.dataset.openTag;
+      activeFolderFilter = null;
+      activeColorFilter = null;
+      render();
+    });
+  });
+}
+
+function renderTrash() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div id="toolbar">
+      <button class="toolbtn" id="back-btn">&larr; Notes</button>
+      <div style="font-weight:700; font-size:18px; flex:1;">Trash</div>
+    </div>
+    <div id="trash-list"></div>
+  `;
+  document.getElementById('back-btn').addEventListener('click', () => { view = 'list'; render(); });
+  const list = document.getElementById('trash-list');
+  if (!trashList.length) {
+    list.innerHTML = `<div id="empty-list">Trash is empty.</div>`;
+    return;
+  }
+  list.innerHTML = trashList.sort((a,b)=>b.updatedAt-a.updatedAt).map(n => `
+    <div class="trash-item" data-id="${n.id}">
+      <div style="min-width:0;">
+        <div class="t">${escapeHtml(n.title || 'Untitled')}</div>
+        <div class="p">${escapeHtml((n.body||'').slice(0,100))}</div>
+      </div>
+      <div class="actions">
+        <button class="toolbtn" data-action="restore">Restore</button>
+        <button class="toolbtn danger" data-action="purge">${purgeConfirmId === n.id ? 'Confirm?' : 'Delete forever'}</button>
+      </div>
+    </div>
+  `).join('');
+  list.querySelectorAll('.trash-item').forEach(el => {
+    const id = el.dataset.id;
+    el.querySelector('[data-action="restore"]').addEventListener('click', () => restoreFromTrash(id));
+    el.querySelector('[data-action="purge"]').addEventListener('click', () => {
+      if (purgeConfirmId === id) purgeFromTrash(id);
+      else { purgeConfirmId = id; renderTrash(); }
+    });
+  });
+}
+
+/* ---------- Autocomplete for [[links]] ---------- */
+let ac = { open: false, start: -1, query: '', matches: [], index: 0 };
+
+function closeAutocomplete() {
+  ac.open = false;
+  const box = document.getElementById('ac-box');
+  if (box) box.remove();
+}
+
+function checkAutocomplete(ta) {
+  const pos = ta.selectionStart;
+  const before = ta.value.slice(0, pos);
+  const openIdx = before.lastIndexOf('[[');
+  if (openIdx === -1) { closeAutocomplete(); return; }
+  const between = before.slice(openIdx + 2);
+  if (between.includes(']]') || between.includes('\n')) { closeAutocomplete(); return; }
+  ac.open = true;
+  ac.start = openIdx;
+  ac.query = between;
+  const q = between.toLowerCase();
+  const all = Object.values(notes).filter(n => n.title);
+  ac.matches = (q
+    ? all.filter(n => n.title.toLowerCase().includes(q))
+    : all.slice().sort((a,b)=>b.updatedAt-a.updatedAt)
+  ).slice(0, 8);
+  ac.index = 0;
+  renderAutocomplete(ta);
+}
+
+function renderAutocomplete(ta) {
+  let box = document.getElementById('ac-box');
+  if (!ac.open || ac.matches.length === 0) { closeAutocomplete(); return; }
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'ac-box';
+    document.body.appendChild(box);
+  }
+  box.innerHTML = ac.matches.map((n, i) =>
+    `<div class="ac-item ${i === ac.index ? 'selected' : ''}" data-i="${i}">${escapeHtml(n.title)}</div>`
+  ).join('');
+  box.querySelectorAll('.ac-item').forEach(el => {
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      confirmAutocomplete(ta, parseInt(el.dataset.i, 10));
+    });
+  });
+  const coords = getCaretCoordinates(ta, ta.selectionStart);
+  box.style.left = coords.left + 'px';
+  box.style.top = (coords.top + 20) + 'px';
+}
+
+function confirmAutocomplete(ta, index) {
+  const chosen = ac.matches[index];
+  if (!chosen) return;
+  const before = ta.value.slice(0, ac.start);
+  const after = ta.value.slice(ta.selectionStart);
+  const insertion = `[[${chosen.title}]]`;
+  const newVal = before + insertion + after;
+  ta.value = newVal;
+  const newPos = before.length + insertion.length;
+  ta.selectionStart = ta.selectionEnd = newPos;
+  closeAutocomplete();
+  onEditorInput(ta);
+  ta.focus();
+}
+
+function getCaretCoordinates(el, position) {
+  const div = document.createElement('div');
+  const style = getComputedStyle(el);
+  ['fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','paddingTop','paddingLeft','paddingRight','borderWidth']
+    .forEach(p => div.style[p] = style[p]);
+  div.style.position = 'absolute';
+  div.style.visibility = 'hidden';
+  div.style.whiteSpace = 'pre-wrap';
+  div.style.wordWrap = 'break-word';
+  div.style.width = el.clientWidth + 'px';
+  document.body.appendChild(div);
+  div.textContent = el.value.substring(0, position);
+  const span = document.createElement('span');
+  span.textContent = el.value.substring(position) || '.';
+  div.appendChild(span);
+  const rect = el.getBoundingClientRect();
+  const spanRect = span.getBoundingClientRect();
+  const divRect = div.getBoundingClientRect();
+  const top = spanRect.top - divRect.top - el.scrollTop;
+  const left = spanRect.left - divRect.left - el.scrollLeft;
+  document.body.removeChild(div);
+  return { top: rect.top + top, left: Math.min(rect.left + left, window.innerWidth - 220) };
+}
+
+/* ---------- Editor input / shortcuts ---------- */
+function onEditorInput(ta) {
+  updateActive('body', ta.value);
+  checkAutocomplete(ta);
+}
+
+function insertAtCursor(ta, text) {
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const val = ta.value;
+  let before = val.slice(0, start);
+  let after = val.slice(end);
+  let insertion = text;
+  if (before.length && !before.endsWith('\n')) insertion = '\n' + insertion;
+  if (after.length && !after.startsWith('\n')) insertion = insertion + '\n';
+  const newVal = before + insertion + after;
+  ta.value = newVal;
+  const pos = before.length + insertion.length;
+  ta.selectionStart = ta.selectionEnd = pos;
+  onEditorInput(ta);
+  ta.focus();
+}
+
+async function insertImage(ta, file) {
+  const buf = await file.arrayBuffer();
+  const bytes = Array.from(new Uint8Array(buf));
+  const name = file.name || `image.${(file.type.split('/')[1] || 'png')}`;
+  try {
+    const relPath = await window.notesAPI.saveImage(name, bytes);
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    const val = ta.value;
+    const insertion = `![](${relPath})`;
+    ta.value = val.slice(0, start) + insertion + val.slice(end);
+    const pos = start + insertion.length;
+    ta.selectionStart = ta.selectionEnd = pos;
+    onEditorInput(ta);
+  } catch (e) {
+    console.error('image save failed', e);
+  }
+}
+
+function wrapSelection(ta, marker) {
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const val = ta.value;
+  const selected = val.slice(start, end);
+  const newVal = val.slice(0, start) + marker + selected + marker + val.slice(end);
+  ta.value = newVal;
+  const pos = selected ? end + marker.length * 2 : start + marker.length;
+  ta.selectionStart = ta.selectionEnd = pos;
+  onEditorInput(ta);
+}
+
+function quoteSelection(ta) {
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const val = ta.value;
+  const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+  let lineEnd = val.indexOf('\n', end);
+  if (lineEnd === -1) lineEnd = val.length;
+  const selectedLines = val.slice(lineStart, lineEnd);
+  const alreadyQuoted = selectedLines.split('\n').every(l => l.startsWith('> ') || l.trim() === '');
+  const quoted = selectedLines.split('\n').map(l => {
+    if (l.trim() === '') return l;
+    return alreadyQuoted ? l.replace(/^> /, '') : (l.startsWith('> ') ? l : '> ' + l);
+  }).join('\n');
+  const newVal = val.slice(0, lineStart) + quoted + val.slice(lineEnd);
+  ta.value = newVal;
+  const delta = quoted.length - selectedLines.length;
+  ta.selectionStart = lineStart;
+  ta.selectionEnd = lineEnd + delta;
+  onEditorInput(ta);
+  ta.focus();
+}
+
+function onEditorKeydown(e, ta) {
+  if (ac.open) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); ac.index = (ac.index + 1) % ac.matches.length; renderAutocomplete(ta); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); ac.index = (ac.index - 1 + ac.matches.length) % ac.matches.length; renderAutocomplete(ta); return; }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); confirmAutocomplete(ta, ac.index); return; }
+    if (e.key === 'Escape') { e.preventDefault(); closeAutocomplete(); return; }
+  }
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key.toLowerCase() === 'b') { e.preventDefault(); wrapSelection(ta, '**'); return; }
+  if (mod && e.key.toLowerCase() === 'i') { e.preventDefault(); wrapSelection(ta, '_'); return; }
+}
+
+document.addEventListener('keydown', (e) => {
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key.toLowerCase() === 'n') {
+    e.preventDefault();
+    createNote('');
+  } else if (mod && e.key.toLowerCase() === 'f') {
+    e.preventDefault();
+    if (view !== 'list') { view = 'list'; render(); }
+    document.getElementById('search').focus();
+  } else if (e.key === 'Escape') {
+    if (ac.open) { closeAutocomplete(); }
+    else if (window.innerWidth <= 700 && view === 'detail') { view = 'list'; render(); }
+  }
+});
+
+document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+document.getElementById('new-btn').addEventListener('click', () => createNote(''));
+
+document.getElementById('cheatsheet-link').addEventListener('click', async (e) => {
+  e.preventDefault();
+  const existing = findByTitle('Markdown cheat sheet');
+  if (existing) { selectNote(existing.id); return; }
+  const tempId = uid();
+  const body = `# Headers\n\`# H1\`  \`## H2\`  \`### H3\`\n\nClick the arrow next to any heading here to collapse it.\n\n# Emphasis\n**bold** \`**bold**\`\n*italic* \`*italic*\`\n~~strikethrough~~ \`~~strikethrough~~\`\n\n# Lists\n- bullet item\n- another item\n\n1. numbered item\n2. another item\n\n- [ ] unchecked task\n- [x] checked task\n\n# Links\n[link text](https://example.com)\n\n[[Note Title]] — link to another note (type [[ for autocomplete)\n\n# Tags\nTags no longer live inline in the text — add them in the Tags section at the bottom of a note instead, then click one (or a sidebar chip) to filter.\n\n# Images\n\`![alt text](image-url)\`\n\n# Code\nInline: \\\`code\\\`\n\nFenced block:\n\\\`\\\`\\\`\nyour code here\n\\\`\\\`\\\`\n\n# Blockquote\nWhile editing, select a line and click **Quote**, or just type \`> \` yourself:\n\n> quoted text\n\n# Table\n| Col A | Col B |\n| --- | --- |\n| 1 | 2 |\n\n# Horizontal rule\n---\n\n# Column breaks\nWhile editing: **Column break** starts a new side-by-side column. **Sub-column** splits the *current* column further into side-by-side sub-columns. **1-column section** drops back to normal single-column flow — useful between two column layouts, or to end one for good. You can also just type \`%%col%%\`, \`%%subcol%%\`, or \`%%endcol%%\` directly wherever you want the split.\n\n# Keyboard shortcuts\n⌘N new note · ⌘F search · ⌘B bold · ⌘I italic`;
+  notes[tempId] = { id: tempId, title: 'Markdown cheat sheet', body, tags: [], pinned: false, color: '', folder: '', updatedAt: Date.now() };
+  selectNote(tempId);
+  const newId = await window.notesAPI.save(tempId, notes[tempId].title, notes[tempId].body, notes[tempId].tags, notes[tempId].pinned, notes[tempId].color, notes[tempId].folder);
+  if (newId !== tempId) {
+    const n = notes[tempId]; delete notes[tempId]; n.id = newId; notes[newId] = n;
+    if (activeId === tempId) activeId = newId;
+    renderSidebar();
+  }
+});
+
+document.getElementById('home-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  panel = 'home';
+  view = 'detail';
+  render();
+});
+
+document.getElementById('trash-link').addEventListener('click', async (e) => {
+  e.preventDefault();
+  panel = 'trash';
+  view = 'detail';
+  purgeConfirmId = null;
+  await loadTrash();
+  render();
+});
+
+document.getElementById('reveal-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  window.notesAPI.revealFolder();
+});
+document.getElementById('search').addEventListener('input', e => {
+  searchTerm = e.target.value;
+  renderSidebar();
+});
+document.getElementById('clear-filter').addEventListener('click', () => {
+  activeTagFilter = null;
+  activeColorFilter = null;
+  renderSidebar();
+});
+
+/* ---------- Preferences ---------- */
+async function openPreferences() {
+  document.getElementById('prefs-path').textContent = notesDirPath || await window.notesAPI.getNotesDir();
+  const current = document.documentElement.getAttribute('data-theme');
+  document.querySelectorAll('.theme-swatch').forEach(el => {
+    el.classList.toggle('active', el.dataset.theme === current);
+  });
+  document.getElementById('prefs-backdrop').classList.add('open');
+}
+function closePreferences() {
+  document.getElementById('prefs-backdrop').classList.remove('open');
+}
+async function reloadAfterFolderChange() {
+  activeId = null;
+  panel = 'note';
+  await loadNotes();
+}
+
+document.getElementById('prefs-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  openPreferences();
+});
+document.getElementById('prefs-close').addEventListener('click', closePreferences);
+document.getElementById('prefs-backdrop').addEventListener('click', (e) => {
+  if (e.target.id === 'prefs-backdrop') closePreferences();
+});
+document.getElementById('prefs-choose').addEventListener('click', async () => {
+  const chosen = await window.notesAPI.pickNotesFolder();
+  if (!chosen) return;
+  await window.notesAPI.setNotesDir(chosen);
+  notesDirPath = chosen;
+  document.getElementById('prefs-path').textContent = chosen;
+  await reloadAfterFolderChange();
+});
+document.getElementById('prefs-default').addEventListener('click', async () => {
+  // Empty string tells the backend to fall back to ~/Documents/MeglaNote
+  await window.notesAPI.setNotesDir('');
+  notesDirPath = await window.notesAPI.getNotesDir();
+  document.getElementById('prefs-path').textContent = notesDirPath;
+  await reloadAfterFolderChange();
+});
+document.querySelectorAll('.theme-swatch').forEach(el => {
+  el.addEventListener('click', () => applyTheme(el.dataset.theme));
+});
+
+/* ---------- Native menu bridge ---------- */
+window.__TAURI__.event.listen('menu-new-note', () => createNote(''));
+
+/* ---------- Web clipper ---------- */
+window.__TAURI__.event.listen('clip-received', (event) => {
+  const { title, url, text } = event.payload || {};
+  createNoteFromClip(title, url, text);
+});
+
+async function createNoteFromClip(title, url, text) {
+  const quoted = text ? '> ' + text.trim().replace(/\n/g, '\n> ') + '\n\n' : '';
+  const source = url ? `Source: [${title || url}](${url})` : '';
+  const body = quoted + source;
+  const tempId = uid();
+  notes[tempId] = {
+    id: tempId,
+    title: title || 'Clipped note',
+    body,
+    tags: ['clipped'],
+    pinned: false,
+    color: '',
+    folder: '',
+    updatedAt: Date.now()
+  };
+  activeId = tempId;
+  mode = 'preview';
+  view = 'detail';
+  panel = 'note';
+  render();
+  const newId = await window.notesAPI.save(tempId, notes[tempId].title, notes[tempId].body, notes[tempId].tags, notes[tempId].pinned, notes[tempId].color, notes[tempId].folder);
+  if (newId && newId !== tempId && notes[tempId]) {
+    const n = notes[tempId];
+    delete notes[tempId];
+    n.id = newId;
+    notes[newId] = n;
+    if (activeId === tempId) activeId = newId;
+    render();
+  }
+}
+
+/* ---------- Auto-updater ---------- */
+function closeUpdateToast() {
+  const el = document.getElementById('update-toast');
+  if (el) el.remove();
+}
+function showUpdateToast(info) {
+  closeUpdateToast();
+  const box = document.createElement('div');
+  box.id = 'update-toast';
+  box.innerHTML = `
+    <div class="t">Update available — v${escapeHtml(info.version)}</div>
+    ${info.notes ? `<div class="n">${escapeHtml(info.notes).slice(0, 300)}</div>` : ''}
+    <div class="actions">
+      <button class="toolbtn active-mode" id="update-install-btn">Install</button>
+      <button class="toolbtn" id="update-dismiss-btn">Later</button>
+    </div>
+  `;
+  document.body.appendChild(box);
+  document.getElementById('update-dismiss-btn').addEventListener('click', closeUpdateToast);
+  document.getElementById('update-install-btn').addEventListener('click', async () => {
+    const installBtn = document.getElementById('update-install-btn');
+    const dismissBtn = document.getElementById('update-dismiss-btn');
+    installBtn.textContent = 'Installing…';
+    installBtn.disabled = true;
+    if (dismissBtn) dismissBtn.disabled = true;
+    try {
+      await window.notesAPI.installUpdate();
+      box.innerHTML = `<div class="t">Update installed ✓</div><div class="n">Quit MeglaNote (⌘Q) and reopen it to finish updating.</div>`;
+    } catch (e) {
+      box.innerHTML = `<div class="t">Update failed</div><div class="n">${escapeHtml(String(e && e.message ? e.message : e))}</div><div class="actions"><button class="toolbtn" id="update-close-btn">Close</button></div>`;
+      const closeBtn = document.getElementById('update-close-btn');
+      if (closeBtn) closeBtn.addEventListener('click', closeUpdateToast);
+    }
+  });
+}
+async function checkForUpdates(silent) {
+  try {
+    const info = await window.notesAPI.checkForUpdate();
+    if (info) showUpdateToast(info);
+    else if (!silent) alert("You're up to date.");
+  } catch (e) {
+    if (!silent) alert('Could not check for updates: ' + (e && e.message ? e.message : e));
+  }
+}
+document.getElementById('check-update-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  checkForUpdates(false);
+});
+
+loadTheme();
+loadNotes().then(async () => {
+  try {
+    const pending = await window.notesAPI.getPendingClip();
+    if (pending) createNoteFromClip(pending.title, pending.url, pending.text);
+  } catch (e) {
+    // no pending clip, or command unavailable — nothing to do
+  }
+  // Quiet startup check - a few seconds in, so it never competes with
+  // the initial note list load or a cold-start clip.
+  setTimeout(() => checkForUpdates(true), 3000);
+});
+</script>
+</body>
+</html>
