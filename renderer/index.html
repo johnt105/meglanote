@@ -233,6 +233,8 @@
     width: 60px; border: 1px solid var(--rule); border-radius: 6px; padding: 5px 7px;
     font-family: inherit; font-size: 13px; background: var(--paper); color: var(--ink);
   }
+  #table-popover .table-popover-actions { display: flex; flex-direction: column; gap: 6px; min-width: 180px; }
+  #table-popover .table-popover-actions .toolbtn { text-align: left; width: 100%; }
 
   /* Color / folder popovers */
   #color-popover, #folder-popover {
@@ -511,6 +513,11 @@
     background: var(--paper); border: 1px solid var(--rule); border-radius: 6px;
     padding: 8px 10px; margin-bottom: 14px; word-break: break-all; color: var(--ink);
   }
+  #prefs-card input[type="text"] {
+    width: 100%; box-sizing: border-box; font-family: inherit; font-size: 13.5px;
+    background: var(--paper); border: 1px solid var(--rule); border-radius: 6px;
+    padding: 8px 10px; margin-bottom: 14px; color: var(--ink);
+  }
   #prefs-buttons { display: flex; gap: 8px; margin-bottom: 16px; }
   .prefs-hint { font-size: 11.5px; color: var(--graphite); line-height: 1.5; margin: 0 0 18px; }
   #sidebar-toggles { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
@@ -581,6 +588,8 @@
 <div id="prefs-backdrop">
   <div id="prefs-card">
     <h2>Preferences</h2>
+    <label>Your name</label>
+    <input type="text" id="prefs-name" placeholder="e.g. Alex" />
     <label>Notes folder</label>
     <div id="prefs-path">…</div>
     <div id="prefs-buttons">
@@ -1408,7 +1417,7 @@ function renderMain() {
       <button class="toolbtn ${mode==='preview'?'active-mode':''}" id="preview-toggle">Preview</button>
       ${mode === 'edit' ? `
         <button class="toolbtn" id="layout-btn" title="Column layout options">▤ Layout</button>
-        <button class="toolbtn" id="table-btn" title="Insert a table">⊞ Table</button>
+        <button class="toolbtn" id="table-btn" title="Insert or edit a table">⊞ Table</button>
       ` : ''}
       <button class="toolbtn" id="pin-btn" title="${note.pinned ? 'Unpin' : 'Pin to top'}">${note.pinned ? '★ Pinned' : '☆ Pin'}</button>
       <button class="toolbtn" id="color-btn" title="Flag this note with a color">
@@ -1612,7 +1621,9 @@ function renderHome() {
   const colors = colorCounts();
   const recent = [...allNotes].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6);
   const hour = today.getHours();
-  const greeting = hour < 5 ? 'Still up?' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const greetingBase = hour < 5 ? 'Still up?' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const userName = (appSettings.userName || '').trim();
+  const greeting = userName && greetingBase !== 'Still up?' ? `${greetingBase}, ${escapeHtml(userName)}` : greetingBase;
 
   const stat = (icon, n, l) => `
     <div class="home-stat-card">
@@ -1686,6 +1697,7 @@ function renderHome() {
     el.addEventListener('click', () => {
       panel = 'note';
       view = 'list';
+      activeId = null;
       activeColorFilter = el.dataset.openColor;
       activeTagFilter = null;
       activeFolderFilter = null;
@@ -1699,6 +1711,7 @@ function renderHome() {
     el.addEventListener('click', () => {
       panel = 'note';
       view = 'list';
+      activeId = null;
       activeFolderFilter = el.dataset.openFolder;
       activeTagFilter = null;
       activeColorFilter = null;
@@ -1709,6 +1722,7 @@ function renderHome() {
     el.addEventListener('click', () => {
       panel = 'note';
       view = 'list';
+      activeId = null;
       activeTagFilter = el.dataset.openTag;
       activeFolderFilter = null;
       activeColorFilter = null;
@@ -1908,6 +1922,251 @@ function closeTablePromptOnOutsideClick(e) {
   const box = document.getElementById('table-popover');
   if (box && !box.contains(e.target)) closeTablePrompt();
 }
+
+// ---- Table editing helpers (tab/enter navigation, auto-align, add/remove row/col) ----
+
+function parseTableRow(line) {
+  const t = line.trim();
+  if (t.length < 2 || t[0] !== '|' || t[t.length - 1] !== '|') return null;
+  const inner = t.slice(1, -1);
+  return inner.split(/(?<!\\)\|/).map(c => c.trim());
+}
+
+function isDividerCells(cells) {
+  return !!cells && cells.length > 0 && cells.every(c => /^:?-+:?$/.test(c));
+}
+
+function findTableBlockAt(lines, idx) {
+  if (idx < 0 || idx >= lines.length) return null;
+  if (parseTableRow(lines[idx]) === null) return null;
+  let start = idx, end = idx;
+  while (start > 0 && parseTableRow(lines[start - 1]) !== null) start--;
+  while (end < lines.length - 1 && parseTableRow(lines[end + 1]) !== null) end++;
+  if (end - start < 1) return null;
+  const headerCells = parseTableRow(lines[start]);
+  const dividerCells = parseTableRow(lines[start + 1]);
+  if (!headerCells || !isDividerCells(dividerCells)) return null;
+  return { start, end, numCols: headerCells.length };
+}
+
+function detectAlign(cell) {
+  const left = cell.startsWith(':'), right = cell.endsWith(':');
+  if (left && right) return 'center';
+  if (right) return 'right';
+  if (left) return 'left';
+  return 'none';
+}
+
+function buildDividerCell(width, align) {
+  const w = Math.max(3, width);
+  if (align === 'center') return ':' + '-'.repeat(Math.max(1, w - 2)) + ':';
+  if (align === 'right') return '-'.repeat(Math.max(2, w - 1)) + ':';
+  if (align === 'left') return ':' + '-'.repeat(Math.max(2, w - 1));
+  return '-'.repeat(w);
+}
+
+// Rebuilds lines[block.start..block.end] in place so every column lines up.
+function realignTableBlock(lines, block) {
+  const { start, end, numCols } = block;
+  const rows = [];
+  for (let i = start; i <= end; i++) {
+    let cells = parseTableRow(lines[i]) || [];
+    cells = cells.slice(0, numCols);
+    while (cells.length < numCols) cells.push('');
+    rows.push(cells);
+  }
+  const aligns = rows[1].map(detectAlign);
+  const widths = new Array(numCols).fill(3);
+  rows.forEach((cells, rIdx) => {
+    if (rIdx === 1) return;
+    cells.forEach((c, colIdx) => { widths[colIdx] = Math.max(widths[colIdx], c.length); });
+  });
+  rows.forEach((cells, rIdx) => {
+    const line = rIdx === 1
+      ? '| ' + cells.map((c, colIdx) => buildDividerCell(widths[colIdx], aligns[colIdx])).join(' | ') + ' |'
+      : '| ' + cells.map((c, colIdx) => c.padEnd(widths[colIdx])).join(' | ') + ' |';
+    lines[start + rIdx] = line;
+  });
+}
+
+function lineStartOffset(lines, idx) {
+  let p = 0;
+  for (let i = 0; i < idx; i++) p += lines[i].length + 1;
+  return p;
+}
+
+function pipePositions(line) {
+  const positions = [];
+  for (let i = 0; i < line.length; i++) if (line[i] === '|' && line[i - 1] !== '\\') positions.push(i);
+  return positions;
+}
+
+function currentCellIndex(line, colInLine) {
+  const positions = pipePositions(line);
+  for (let i = 0; i < positions.length - 1; i++) {
+    if (colInLine >= positions[i] && colInLine <= positions[i + 1]) return i;
+  }
+  return null;
+}
+
+function cellRangeInLine(line, cellIndex) {
+  const positions = pipePositions(line);
+  if (cellIndex < 0 || cellIndex + 1 >= positions.length) return null;
+  const segStart = positions[cellIndex] + 1;
+  const segEnd = positions[cellIndex + 1];
+  const seg = line.slice(segStart, segEnd);
+  const trimmedStart = segStart + (seg.length - seg.trimStart().length);
+  const trimmedEnd = segEnd - (seg.length - seg.trimEnd().length);
+  return { start: trimmedStart, end: Math.max(trimmedStart, trimmedEnd) };
+}
+
+function lineIndexAtCursor(lines, cursorPos) {
+  let lineIdx = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const start = lineStartOffset(lines, i);
+    if (cursorPos >= start && cursorPos <= start + lines[i].length) { lineIdx = i; break; }
+    lineIdx = i;
+  }
+  return lineIdx;
+}
+
+function getCurrentTableBlock(ta) {
+  const lines = ta.value.split('\n');
+  const lineIdx = lineIndexAtCursor(lines, ta.selectionStart);
+  const block = findTableBlockAt(lines, lineIdx);
+  return { lines, block, lineIdx };
+}
+
+function applyLinesToTextarea(ta, lines, focusLineIdx, focusCellIdx) {
+  ta.value = lines.join('\n');
+  if (typeof focusLineIdx === 'number') {
+    const clamped = Math.max(0, Math.min(focusLineIdx, lines.length - 1));
+    const off = lineStartOffset(lines, clamped);
+    const range = cellRangeInLine(lines[clamped], focusCellIdx || 0);
+    ta.selectionStart = ta.selectionEnd = off + (range ? range.start : 0);
+  }
+  onEditorInput(ta);
+  ta.focus();
+}
+
+// Tab / Shift+Tab: jump between table cells, adding a new row off the end.
+function handleTableTab(ta, shiftKey) {
+  let { lines, block, lineIdx } = getCurrentTableBlock(ta);
+  if (!block) return false;
+
+  const colInLine = ta.selectionStart - lineStartOffset(lines, lineIdx);
+  const curCell = currentCellIndex(lines[lineIdx], colInLine);
+  if (curCell === null) return false;
+  let rowRel = lineIdx - block.start;
+
+  realignTableBlock(lines, block);
+
+  let targetRow = rowRel, targetCol = curCell;
+  if (!shiftKey) {
+    targetCol++;
+    if (targetCol >= block.numCols) {
+      targetCol = 0;
+      targetRow++;
+      if (targetRow === 1) targetRow++;
+      if (targetRow > block.end - block.start) {
+        const blank = new Array(block.numCols).fill('');
+        lines.splice(block.end + 1, 0, '| ' + blank.join(' | ') + ' |');
+        block = { start: block.start, end: block.end + 1, numCols: block.numCols };
+        realignTableBlock(lines, block);
+      }
+    }
+  } else {
+    targetCol--;
+    if (targetCol < 0) {
+      targetRow--;
+      if (targetRow === 1) targetRow--;
+      if (targetRow < 0) targetRow = 0;
+      targetCol = block.numCols - 1;
+    }
+  }
+
+  applyLinesToTextarea(ta, lines, block.start + targetRow, targetCol);
+  return true;
+}
+
+// Enter inside a table row: insert a fresh blank row instead of a plain newline.
+function handleTableEnter(ta) {
+  if (ta.selectionStart !== ta.selectionEnd) return false;
+  const { lines, block, lineIdx } = getCurrentTableBlock(ta);
+  if (!block) return false;
+  const rowRel = lineIdx - block.start;
+  if (rowRel === 0) return false; // header row: let a plain newline happen
+
+  const blank = new Array(block.numCols).fill('');
+  lines.splice(lineIdx + 1, 0, '| ' + blank.join(' | ') + ' |');
+  const newBlock = { start: block.start, end: block.end + 1, numCols: block.numCols };
+  realignTableBlock(lines, newBlock);
+  applyLinesToTextarea(ta, lines, lineIdx + 1, 0);
+  return true;
+}
+
+function tableAddRow(ta) {
+  const { lines, block, lineIdx } = getCurrentTableBlock(ta);
+  if (!block) return;
+  const insertAt = (lineIdx === block.start) ? block.start + 2 : lineIdx + 1;
+  const blank = new Array(block.numCols).fill('');
+  lines.splice(insertAt, 0, '| ' + blank.join(' | ') + ' |');
+  const newBlock = { start: block.start, end: block.end + 1, numCols: block.numCols };
+  realignTableBlock(lines, newBlock);
+  applyLinesToTextarea(ta, lines, insertAt, 0);
+}
+
+function tableAddColumn(ta) {
+  const { lines, block, lineIdx } = getCurrentTableBlock(ta);
+  if (!block) return;
+  const colInLine = ta.selectionStart - lineStartOffset(lines, lineIdx);
+  const cellIdx = currentCellIndex(lines[lineIdx], colInLine);
+  const insertIdx = (cellIdx === null) ? block.numCols : cellIdx + 1;
+  for (let i = block.start; i <= block.end; i++) {
+    let cells = parseTableRow(lines[i]) || new Array(block.numCols).fill('');
+    while (cells.length < block.numCols) cells.push('');
+    cells.splice(insertIdx, 0, (i === block.start + 1) ? '---' : '');
+    lines[i] = '| ' + cells.join(' | ') + ' |';
+  }
+  const newBlock = { start: block.start, end: block.end, numCols: block.numCols + 1 };
+  realignTableBlock(lines, newBlock);
+  applyLinesToTextarea(ta, lines, lineIdx, insertIdx);
+}
+
+function tableDeleteRow(ta) {
+  const { lines, block, lineIdx } = getCurrentTableBlock(ta);
+  if (!block) return;
+  const rowRel = lineIdx - block.start;
+  if (rowRel < 2) return; // don't delete the header or divider row this way
+  lines.splice(lineIdx, 1);
+  const newBlock = { start: block.start, end: block.end - 1, numCols: block.numCols };
+  if (newBlock.end > newBlock.start) realignTableBlock(lines, newBlock);
+  applyLinesToTextarea(ta, lines, Math.min(lineIdx, newBlock.end), 0);
+}
+
+function tableDeleteColumn(ta) {
+  const { lines, block, lineIdx } = getCurrentTableBlock(ta);
+  if (!block || block.numCols <= 1) return;
+  const colInLine = ta.selectionStart - lineStartOffset(lines, lineIdx);
+  const cellIdx = currentCellIndex(lines[lineIdx], colInLine);
+  const delIdx = (cellIdx === null) ? block.numCols - 1 : Math.min(cellIdx, block.numCols - 1);
+  for (let i = block.start; i <= block.end; i++) {
+    let cells = parseTableRow(lines[i]) || new Array(block.numCols).fill('');
+    while (cells.length < block.numCols) cells.push('');
+    cells.splice(delIdx, 1);
+    lines[i] = '| ' + cells.join(' | ') + ' |';
+  }
+  const newBlock = { start: block.start, end: block.end, numCols: block.numCols - 1 };
+  realignTableBlock(lines, newBlock);
+  applyLinesToTextarea(ta, lines, lineIdx, Math.max(0, delIdx - 1));
+}
+
+function positionPopover(box, anchorEl) {
+  const rect = anchorEl.getBoundingClientRect();
+  box.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+  box.style.top = (rect.bottom + 6) + 'px';
+}
+
 function openTablePrompt(anchorEl, ta) {
   closeColorPicker();
   closeFolderPopover();
@@ -1916,6 +2175,27 @@ function openTablePrompt(anchorEl, ta) {
   closeTablePrompt();
   const box = document.createElement('div');
   box.id = 'table-popover';
+
+  const { block } = getCurrentTableBlock(ta);
+  if (block) {
+    box.innerHTML = `
+      <div class="table-popover-actions">
+        <button class="toolbtn" id="table-add-row">➕ Add row below</button>
+        <button class="toolbtn" id="table-add-col">➕ Add column right</button>
+        <button class="toolbtn danger" id="table-del-row">➖ Delete this row</button>
+        <button class="toolbtn danger" id="table-del-col">➖ Delete this column</button>
+      </div>
+    `;
+    document.body.appendChild(box);
+    positionPopover(box, anchorEl);
+    document.getElementById('table-add-row').addEventListener('click', () => { tableAddRow(ta); closeTablePrompt(); });
+    document.getElementById('table-add-col').addEventListener('click', () => { tableAddColumn(ta); closeTablePrompt(); });
+    document.getElementById('table-del-row').addEventListener('click', () => { tableDeleteRow(ta); closeTablePrompt(); });
+    document.getElementById('table-del-col').addEventListener('click', () => { tableDeleteColumn(ta); closeTablePrompt(); });
+    setTimeout(() => document.addEventListener('mousedown', closeTablePromptOnOutsideClick), 0);
+    return;
+  }
+
   box.innerHTML = `
     <div class="table-popover-row">
       <label>Rows <input type="number" id="table-rows" value="3" min="1" max="20" /></label>
@@ -1924,9 +2204,7 @@ function openTablePrompt(anchorEl, ta) {
     <button class="toolbtn active-mode" id="table-insert-btn">Insert table</button>
   `;
   document.body.appendChild(box);
-  const rect = anchorEl.getBoundingClientRect();
-  box.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
-  box.style.top = (rect.bottom + 6) + 'px';
+  positionPopover(box, anchorEl);
   document.getElementById('table-rows').focus();
   function doInsertTable() {
     const rows = parseInt(document.getElementById('table-rows').value, 10) || 3;
@@ -2021,6 +2299,12 @@ function onEditorKeydown(e, ta) {
     if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); confirmAutocomplete(ta, ac.index); return; }
     if (e.key === 'Escape') { e.preventDefault(); closeAutocomplete(); return; }
   }
+  if (e.key === 'Tab') {
+    if (handleTableTab(ta, e.shiftKey)) { e.preventDefault(); return; }
+  }
+  if (e.key === 'Enter' && !e.shiftKey) {
+    if (handleTableEnter(ta)) { e.preventDefault(); return; }
+  }
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === 'b') { e.preventDefault(); wrapSelection(ta, '**'); return; }
   if (mod && e.key.toLowerCase() === 'i') { e.preventDefault(); wrapSelection(ta, '_'); return; }
@@ -2098,6 +2382,7 @@ document.getElementById('clear-filter').addEventListener('click', () => {
 /* ---------- Preferences ---------- */
 async function openPreferences() {
   document.getElementById('prefs-path').textContent = notesDirPath || await window.notesAPI.getNotesDir();
+  document.getElementById('prefs-name').value = appSettings.userName || '';
   const current = document.documentElement.getAttribute('data-theme');
   document.querySelectorAll('.theme-swatch').forEach(el => {
     el.classList.toggle('active', el.dataset.theme === current);
@@ -2150,6 +2435,11 @@ document.getElementById('prefs-default').addEventListener('click', async () => {
 });
 document.querySelectorAll('.theme-swatch').forEach(el => {
   el.addEventListener('click', () => applyTheme(el.dataset.theme));
+});
+document.getElementById('prefs-name').addEventListener('input', (e) => {
+  appSettings.userName = e.target.value;
+  saveAppSettings();
+  if (panel === 'home') renderHome();
 });
 
 /* ---------- Native menu bridge ---------- */
