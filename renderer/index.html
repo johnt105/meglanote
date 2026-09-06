@@ -70,14 +70,14 @@
   html[data-theme="kawaii"] #placeholder { font-family: 'Baloo 2', 'Work Sans', system-ui, sans-serif; }
   html[data-theme="kawaii"] .note-card,
   html[data-theme="kawaii"] .toolbtn,
-  html[data-theme="kawaii"] #new-btn,
+  html[data-theme="kawaii"] .new-note-btn,
   html[data-theme="kawaii"] .tag-chip,
   html[data-theme="kawaii"] #search,
   html[data-theme="kawaii"] #ac-box,
   html[data-theme="kawaii"] #prefs-card,
   html[data-theme="kawaii"] .trash-item { border-radius: 16px; }
-  html[data-theme="kawaii"] #new-btn { box-shadow: 0 3px 0 var(--accent-dark); }
-  html[data-theme="kawaii"] #new-btn:active { box-shadow: 0 1px 0 var(--accent-dark); transform: translateY(2px); }
+  html[data-theme="kawaii"] .new-note-btn { box-shadow: 0 3px 0 var(--accent-dark); }
+  html[data-theme="kawaii"] .new-note-btn:active { box-shadow: 0 1px 0 var(--accent-dark); transform: translateY(2px); }
   * { box-sizing: border-box; }
   html, body {
     margin: 0; padding: 0; height: 100%;
@@ -146,13 +146,15 @@
     font-family: inherit; font-size: 13px;
   }
   #search:focus { outline: none; border-color: var(--accent); }
-  #new-btn {
-    width: 100%; padding: 8px 10px;
+  #new-note-row { display: flex; gap: 6px; width: 100%; }
+  .new-note-btn {
+    flex: 1; padding: 8px 8px;
     background: var(--accent); color: #fff; border: none;
-    border-radius: 6px; font-family: inherit; font-size: 13px; font-weight: 500;
-    cursor: pointer;
+    border-radius: 6px; font-family: inherit; font-size: 12px; font-weight: 500;
+    cursor: pointer; white-space: nowrap;
   }
-  #new-btn:hover { background: var(--accent-dark); }
+  .new-note-btn:hover { background: var(--accent-dark); }
+  .new-note-caret { flex: 0 0 28px; font-size: 11px; padding: 8px 0; }
 
   #tags-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .tag-chip {
@@ -232,18 +234,20 @@
     opacity: 0.55; padding: 0 2px; border-radius: 4px; font-size: 12px; line-height: 1;
   }
   .folder-chip-menu-btn:hover { opacity: 1; background: rgba(0,0,0,0.1); }
-  #folder-actions-popover, #layout-menu {
+  #folder-actions-popover, #layout-menu, #template-popover, #history-popover {
     position: fixed; z-index: 60;
     background: var(--card); border: 1px solid var(--rule); border-radius: 8px;
     box-shadow: 0 6px 18px rgba(0,0,0,0.25);
     padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 180px;
   }
-  #folder-actions-popover button, #layout-menu button {
+  #folder-actions-popover button, #layout-menu button, #template-popover button, #history-popover button {
     text-align: left; padding: 6px 8px; border-radius: 6px; font-size: 12.5px;
     background: transparent; border: none; color: var(--ink); cursor: pointer;
   }
-  #folder-actions-popover button:hover, #layout-menu button:hover { background: var(--paper); }
+  #folder-actions-popover button:hover, #layout-menu button:hover, #template-popover button:hover, #history-popover button:hover { background: var(--paper); }
   #folder-actions-popover button.danger { color: #d1453b; }
+  #history-popover button { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .hp-date { color: var(--graphite); font-size: 11px; flex-shrink: 0; }
   #table-popover {
     position: fixed; z-index: 60;
     background: var(--card); border: 1px solid var(--rule); border-radius: 8px;
@@ -421,6 +425,15 @@
   #backlinks .lbl { font-weight: 600; color: var(--ink); margin-right: 8px; }
   #backlinks a { color: var(--link); cursor: pointer; margin-right: 10px; text-decoration: none; }
   #backlinks a:hover { text-decoration: underline; }
+
+  #person-history { padding: 0 24px 10px; margin-top: -4px; }
+  #history-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--tag-bg); color: var(--tag);
+    border: none; border-radius: 100px; padding: 4px 12px;
+    font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  #history-pill:hover { background: var(--rule); }
 
   #tags-editor {
     border-top: 1px solid var(--rule); padding: 12px 24px;
@@ -614,7 +627,11 @@
   </div>
   <div id="sidebar">
     <div id="sidebar-head">
-      <button id="new-btn">+ New note (⌘N)</button>
+      <div id="new-note-row">
+        <button id="new-blank-btn" class="new-note-btn" title="⌘N">+ Blank note</button>
+        <button id="new-meeting-btn" class="new-note-btn" title="⌘⇧N">+ Meeting</button>
+        <button id="new-template-btn" class="new-note-btn new-note-caret" title="New from Template">▾</button>
+      </div>
     </div>
     <div id="filter-banner" style="display:none;">
       <span></span><a id="clear-filter">Clear</a>
@@ -667,17 +684,21 @@ let panel = 'home';    // 'note' | 'trash' | 'home' — what #main shows
 let focusTitleOnRender = false;
 let confirmDeleteId = null;
 let purgeConfirmId = null;
+let expandedBacklinksFor = null;
 
 const invoke = window.__TAURI__.core.invoke;
 window.notesAPI = {
   list: () => invoke('list_notes'),
   listTrash: () => invoke('list_trash'),
   listFolders: () => invoke('list_folders'),
+  listTemplates: () => invoke('list_templates'),
+  getMeetingTemplate: () => invoke('get_meeting_template'),
   createFolder: (name) => invoke('create_folder', { name }),
   renameFolder: (oldName, newName) => invoke('rename_folder', { oldName, newName }),
   deleteFolder: (name) => invoke('delete_folder', { name }),
-  save: (id, title, body, tags, pinned, color, folder) => invoke('save_note', {
-    oldId: id, title, body, tags: tags || [], pinned: !!pinned, color: color || '', folder: folder || ''
+  save: (id, title, body, tags, pinned, color, folder, meetingDate) => invoke('save_note', {
+    oldId: id, title, body, tags: tags || [], pinned: !!pinned, color: color || '', folder: folder || '',
+    meetingDate: meetingDate !== undefined ? meetingDate : ((notes[id] && notes[id].meetingDate) || '')
   }),
   delete: (id) => invoke('delete_note', { id }),
   restore: (id) => invoke('restore_note', { id }),
@@ -890,6 +911,37 @@ function extractLinks(body) {
   return out;
 }
 
+/* A note counts as a "person" note if it lives in the People folder OR
+   carries the person tag (OR, not AND) - covers an organize-by-folder
+   style and an organize-by-tag style without forcing either. */
+function isPersonNote(note) {
+  if (!note) return false;
+  const folder = note.folder || '';
+  const inPeopleFolder = folder === 'People' || folder.startsWith('People/');
+  const hasPersonTag = (note.tags || []).some(t => t.trim().toLowerCase() === 'person');
+  return inPeopleFolder || hasPersonTag;
+}
+
+/* Sort key for "newest first": a note's own meetingDate if it has one,
+   otherwise its file's updatedAt. Used for backlinks everywhere, and for
+   a person note's meeting History list. */
+function backlinkSortValue(n) {
+  if (n.meetingDate) {
+    const t = Date.parse(n.meetingDate);
+    if (!isNaN(t)) return t;
+  }
+  return n.updatedAt || 0;
+}
+
+/* Backlinks to this note that come from meeting notes specifically - the
+   basis of a person note's History pill. Not a new data structure, just
+   backlinks filtered to meeting notes and sorted newest-first. */
+function meetingBacklinksFor(note) {
+  return getBacklinks(note)
+    .filter(n => (n.tags || []).some(t => t.trim().toLowerCase() === 'meeting'))
+    .sort((a, b) => backlinkSortValue(b) - backlinkSortValue(a));
+}
+
 function allTags() {
   const set = new Set();
   Object.values(notes).forEach(n => (n.tags || []).forEach(t => set.add(t)));
@@ -1063,6 +1115,7 @@ function selectNote(id) {
   view = 'detail';
   panel = 'note';
   confirmDeleteId = null;
+  expandedBacklinksFor = null;
   render();
 }
 
@@ -1084,6 +1137,132 @@ async function createNote(titleText, folderName) {
     if (activeId === tempId) activeId = newId;
     renderSidebar();
   }
+}
+
+/* Creates a note with a starting body/tags/meetingDate already filled in -
+   used by the Meeting button and "New from Template". */
+async function createNoteWithContent(titleText, body, tags, folderName, meetingDate) {
+  const tempId = uid();
+  notes[tempId] = {
+    id: tempId, title: titleText || '', body: body || '', tags: tags || [],
+    pinned: false, color: '', folder: folderName || '', meetingDate: meetingDate || '',
+    updatedAt: Date.now()
+  };
+  activeId = tempId;
+  mode = 'edit';
+  view = 'detail';
+  panel = 'note';
+  focusTitleOnRender = false;
+  render();
+  const newId = await window.notesAPI.save(
+    tempId, notes[tempId].title, notes[tempId].body, notes[tempId].tags,
+    notes[tempId].pinned, notes[tempId].color, notes[tempId].folder, notes[tempId].meetingDate
+  );
+  if (newId && newId !== tempId && notes[tempId]) {
+    const n = notes[tempId];
+    delete notes[tempId];
+    n.id = newId;
+    notes[newId] = n;
+    if (activeId === tempId) activeId = newId;
+    renderSidebar();
+  }
+}
+
+function fillTemplate(str, vars) {
+  return (str || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key) => (key in vars ? vars[key] : ''));
+}
+
+function templateDateText(d) {
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function templateTimeText(d) {
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+/* "+ Meeting note" - loads the Meeting template (the backend silently
+   recreates the stock default if it's ever missing), substitutes
+   {{title}}/{{date}}/{{time}} once at creation time, auto-tags "meeting",
+   and stamps a real meetingDate into the note's frontmatter. No auto-pin. */
+async function createMeetingNote() {
+  let tmpl;
+  try {
+    tmpl = await window.notesAPI.getMeetingTemplate();
+  } catch (err) {
+    showMessageToast('Could not load the Meeting template: ' + (err && err.message ? err.message : err), { error: true, sticky: true });
+    return;
+  }
+  const now = new Date();
+  const body = fillTemplate(tmpl.body, { title: 'Meeting', date: templateDateText(now), time: templateTimeText(now) });
+  await createNoteWithContent('Meeting', body, ['meeting'], '', now.toISOString());
+}
+
+/* "New from Template" - any other template sitting in the Templates
+   folder. Same {{date}}/{{time}} substitution, but no auto-tag/pin/
+   meetingDate - those are specific to the Meeting template. */
+async function createNoteFromTemplateNote(tmplNote) {
+  const now = new Date();
+  const body = fillTemplate(tmplNote.body, { title: tmplNote.title, date: templateDateText(now), time: templateTimeText(now) });
+  await createNoteWithContent(tmplNote.title, body, [], '', '');
+}
+
+function closeTemplatePicker() {
+  const el = document.getElementById('template-popover');
+  if (el) el.remove();
+  document.removeEventListener('mousedown', closeTemplatePickerOnOutsideClick);
+}
+function closeTemplatePickerOnOutsideClick(e) {
+  const box = document.getElementById('template-popover');
+  if (box && !box.contains(e.target) && e.target.id !== 'new-template-btn') closeTemplatePicker();
+}
+async function openTemplatePicker(anchorEl) {
+  closeTemplatePicker();
+  let templates = [];
+  try {
+    templates = await window.notesAPI.listTemplates();
+  } catch (err) { /* Templates folder just doesn't exist yet - treat as empty */ }
+  const others = templates.filter(t => t.title.trim().toLowerCase() !== 'meeting');
+  const rect = anchorEl.getBoundingClientRect();
+  const box = document.createElement('div');
+  box.id = 'template-popover';
+  box.style.top = (rect.bottom + 6) + 'px';
+  box.style.left = Math.max(8, rect.right - 200) + 'px';
+  box.innerHTML = others.length
+    ? others.map(t => `<button data-title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</button>`).join('')
+    : `<div style="padding:6px 8px; font-size:12px; color:var(--graphite); max-width:200px;">No other templates yet — drop a .md file into the Templates folder to add one.</div>`;
+  document.body.appendChild(box);
+  box.querySelectorAll('button[data-title]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const t = others.find(x => x.title === btn.dataset.title);
+      closeTemplatePicker();
+      if (t) createNoteFromTemplateNote(t);
+    });
+  });
+  setTimeout(() => document.addEventListener('mousedown', closeTemplatePickerOnOutsideClick), 0);
+}
+
+function closeHistoryPopover() {
+  const el = document.getElementById('history-popover');
+  if (el) el.remove();
+  document.removeEventListener('mousedown', closeHistoryPopoverOnOutsideClick);
+}
+function closeHistoryPopoverOnOutsideClick(e) {
+  const box = document.getElementById('history-popover');
+  if (box && !box.contains(e.target) && e.target.id !== 'history-pill') closeHistoryPopover();
+}
+function openHistoryPopover(anchorEl, meetings) {
+  closeHistoryPopover();
+  const rect = anchorEl.getBoundingClientRect();
+  const box = document.createElement('div');
+  box.id = 'history-popover';
+  box.style.top = (rect.bottom + 6) + 'px';
+  box.style.left = rect.left + 'px';
+  box.innerHTML = meetings.map(n => `<button data-id="${n.id}"><span>${escapeHtml(n.title)}</span><span class="hp-date">${escapeHtml(n.meetingDate ? templateDateText(new Date(n.meetingDate)) : fmtDate(n.updatedAt))}</span></button>`).join('');
+  document.body.appendChild(box);
+  box.querySelectorAll('button[data-id]').forEach(btn => {
+    btn.addEventListener('click', () => { closeHistoryPopover(); selectNote(btn.dataset.id); });
+  });
+  setTimeout(() => document.addEventListener('mousedown', closeHistoryPopoverOnOutsideClick), 0);
 }
 
 async function togglePin(id) {
@@ -1463,6 +1642,11 @@ function renderMain() {
     return;
   }
   const backlinks = getBacklinks(note);
+  const sortedBacklinks = backlinks.slice().sort((a, b) => backlinkSortValue(b) - backlinkSortValue(a));
+  const showAllBacklinks = expandedBacklinksFor === note.id;
+  const visibleBacklinks = showAllBacklinks ? sortedBacklinks : sortedBacklinks.slice(0, 5);
+  const remainingBacklinks = sortedBacklinks.length - visibleBacklinks.length;
+  const personMeetings = isPersonNote(note) ? meetingBacklinksFor(note) : [];
   main.innerHTML = `
     <div id="toolbar">
       <button class="toolbtn" id="back-btn">&larr; Notes</button>
@@ -1484,6 +1668,10 @@ function renderMain() {
       </select>
       <button class="toolbtn danger" id="delete-btn">${confirmDeleteId === note.id ? 'Confirm delete?' : 'Delete'}</button>
     </div>
+    ${personMeetings.length ? `
+    <div id="person-history">
+      <button id="history-pill">🕐 ${personMeetings.length} meeting${personMeetings.length === 1 ? '' : 's'}</button>
+    </div>` : ''}
     <div id="editor-wrap">
       ${mode === 'edit'
         ? `<textarea id="editor" spellcheck="false">${escapeHtml(note.body)}</textarea>`
@@ -1497,8 +1685,9 @@ function renderMain() {
     </div>
     <div id="backlinks">
       <span class="lbl">Linked from</span>
-      ${backlinks.length
-        ? backlinks.map(n => `<a data-id="${n.id}">${escapeHtml(n.title)}</a>`).join('')
+      ${sortedBacklinks.length
+        ? visibleBacklinks.map(n => `<a data-id="${n.id}">${escapeHtml(n.title)}</a>`).join('') +
+          (remainingBacklinks > 0 ? `<a id="backlinks-more">+${remainingBacklinks} more</a>` : '')
         : '<span>No notes link here yet</span>'
       }
     </div>
@@ -1637,6 +1826,13 @@ function renderMain() {
 
   document.querySelectorAll('#backlinks a[data-id]').forEach(a => {
     a.addEventListener('click', () => selectNote(a.dataset.id));
+  });
+  document.getElementById('backlinks-more')?.addEventListener('click', () => {
+    expandedBacklinksFor = note.id;
+    renderMain();
+  });
+  document.getElementById('history-pill')?.addEventListener('click', (e) => {
+    openHistoryPopover(e.currentTarget, personMeetings);
   });
 }
 
@@ -2366,7 +2562,10 @@ function onEditorKeydown(e, ta) {
 
 document.addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
-  if (mod && e.key.toLowerCase() === 'n') {
+  if (mod && e.shiftKey && e.key.toLowerCase() === 'n') {
+    e.preventDefault();
+    createMeetingNote();
+  } else if (mod && e.key.toLowerCase() === 'n') {
     e.preventDefault();
     createNote('');
   } else if (mod && e.key.toLowerCase() === 'f') {
@@ -2380,7 +2579,9 @@ document.addEventListener('keydown', (e) => {
 });
 
 
-document.getElementById('new-btn').addEventListener('click', () => createNote(''));
+document.getElementById('new-blank-btn').addEventListener('click', () => createNote(''));
+document.getElementById('new-meeting-btn').addEventListener('click', () => createMeetingNote());
+document.getElementById('new-template-btn').addEventListener('click', (e) => openTemplatePicker(e.currentTarget));
 
 document.getElementById('cheatsheet-link').addEventListener('click', async (e) => {
   e.preventDefault();

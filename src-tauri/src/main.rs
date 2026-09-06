@@ -37,6 +37,8 @@ struct Note {
     folder: String,
     #[serde(rename = "updatedAt")]
     updated_at: f64,
+    #[serde(rename = "meetingDate", default)]
+    meeting_date: String,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -99,7 +101,54 @@ fn settings_path() -> PathBuf {
     notes_dir().join(".settings.json")
 }
 
-fn parse_note_file(raw: &str) -> (String, String, Vec<String>, bool, String) {
+/// Reserved, hidden folder (same treatment as .trash) holding plain .md
+/// template files. Never surfaced in normal folder/sidebar browsing or
+/// search - reachable only through the template picker.
+fn templates_dir() -> PathBuf {
+    let dir = notes_dir().join(".templates");
+    if !dir.exists() {
+        let _ = fs::create_dir_all(&dir);
+    }
+    dir
+}
+
+const DEFAULT_MEETING_TEMPLATE: &str = "# {{title}}\n{{date}} \u{b7} {{time}}\n\n## Attendees\n- [[ ]]\n- [[ ]]\n\n## Agenda\n- \n- \n\n## Notes\n\n\n## Decisions\n> \n\n## Action Items\n- [ ] \n- [ ] \n";
+
+/// Lists every template sitting in the Templates folder, for the
+/// "New from Template" picker. The frontend filters out "Meeting" itself,
+/// which already has its own dedicated button/shortcut.
+#[tauri::command]
+fn list_templates() -> Vec<Note> {
+    read_notes_recursive(&templates_dir())
+}
+
+/// Loads the "Meeting" template, silently recreating the stock default if
+/// it's ever missing (deleted, or first run) rather than failing - so
+/// editing Meeting.md changes what the "+ Meeting note" button produces.
+#[tauri::command]
+fn get_meeting_template() -> Note {
+    let dir = templates_dir();
+    let path = dir.join("Meeting.md");
+    if !path.exists() {
+        let content = serialize_note_file("Meeting", DEFAULT_MEETING_TEMPLATE, &[], false, "", "");
+        let _ = fs::write(&path, content);
+    }
+    let raw = fs::read_to_string(&path).unwrap_or_default();
+    let (title, body, tags, pinned, color, meeting_date) = parse_note_file(&raw);
+    Note {
+        id: "Meeting".to_string(),
+        title: if title.is_empty() { "Meeting".to_string() } else { title },
+        body,
+        tags,
+        pinned,
+        color,
+        folder: String::new(),
+        updated_at: 0.0,
+        meeting_date,
+    }
+}
+
+fn parse_note_file(raw: &str) -> (String, String, Vec<String>, bool, String, String) {
     if let Some(stripped) = raw.strip_prefix("---\n") {
         if let Some(end) = stripped.find("\n---\n") {
             let front = &stripped[..end];
@@ -108,6 +157,7 @@ fn parse_note_file(raw: &str) -> (String, String, Vec<String>, bool, String) {
             let mut tags: Vec<String> = Vec::new();
             let mut pinned = false;
             let mut color = String::new();
+            let mut meeting_date = String::new();
             for line in front.lines() {
                 if let Some(rest) = line.strip_prefix("title:") {
                     let rest = rest.trim();
@@ -119,21 +169,34 @@ fn parse_note_file(raw: &str) -> (String, String, Vec<String>, bool, String) {
                     pinned = rest.trim() == "true";
                 } else if let Some(rest) = line.strip_prefix("color:") {
                     color = serde_json::from_str::<String>(rest.trim()).unwrap_or_default();
+                } else if let Some(rest) = line.strip_prefix("meetingDate:") {
+                    let rest = rest.trim();
+                    meeting_date = serde_json::from_str::<String>(rest)
+                        .unwrap_or_else(|_| rest.to_string());
                 }
             }
-            return (title, body.to_string(), tags, pinned, color);
+            return (title, body.to_string(), tags, pinned, color, meeting_date);
         }
     }
-    (String::new(), raw.to_string(), Vec::new(), false, String::new())
+    (String::new(), raw.to_string(), Vec::new(), false, String::new(), String::new())
 }
 
-fn serialize_note_file(title: &str, body: &str, tags: &[String], pinned: bool, color: &str) -> String {
+fn serialize_note_file(title: &str, body: &str, tags: &[String], pinned: bool, color: &str, meeting_date: &str) -> String {
+    let meeting_line = if meeting_date.trim().is_empty() {
+        String::new()
+    } else {
+        format!(
+            "meetingDate: {}\n",
+            serde_json::to_string(meeting_date).unwrap_or_else(|_| "\"\"".to_string())
+        )
+    };
     format!(
-        "---\ntitle: {}\ntags: {}\npinned: {}\ncolor: {}\n---\n{}",
+        "---\ntitle: {}\ntags: {}\npinned: {}\ncolor: {}\n{}---\n{}",
         serde_json::to_string(title).unwrap_or_else(|_| "\"\"".to_string()),
         serde_json::to_string(tags).unwrap_or_else(|_| "[]".to_string()),
         pinned,
         serde_json::to_string(color).unwrap_or_else(|_| "\"\"".to_string()),
+        meeting_line,
         body
     )
 }
@@ -215,7 +278,7 @@ fn collect_notes(root: &Path, dir: &Path, out: &mut Vec<Note>) {
             Ok(r) => r,
             Err(_) => continue,
         };
-        let (title, body, tags, pinned, color) = parse_note_file(&raw);
+        let (title, body, tags, pinned, color, meeting_date) = parse_note_file(&raw);
         let rel = path.strip_prefix(root).unwrap_or(&path);
         let id = rel.with_extension("").to_string_lossy().replace('\\', "/");
         let folder = path
@@ -231,7 +294,7 @@ fn collect_notes(root: &Path, dir: &Path, out: &mut Vec<Note>) {
                     .unwrap_or(0.0)
             })
             .unwrap_or(0.0);
-        out.push(Note { id, title, body, tags, pinned, color, folder, updated_at });
+        out.push(Note { id, title, body, tags, pinned, color, folder, updated_at, meeting_date });
     }
 }
 
@@ -376,6 +439,7 @@ fn save_note(
     pinned: bool,
     color: String,
     folder: String,
+    meeting_date: String,
 ) -> Result<String, String> {
     let dir = notes_dir();
     let old_path = dir.join(format!("{}.md", old_id));
@@ -403,7 +467,7 @@ fn save_note(
         }).map_err(|e| e.to_string())?;
     }
 
-    fs::write(&target_path, serialize_note_file(&title, &body, &tags, pinned, &color))
+    fs::write(&target_path, serialize_note_file(&title, &body, &tags, pinned, &color, &meeting_date))
         .map_err(|e| e.to_string())?;
 
     let rel = target_path.strip_prefix(&dir).unwrap_or(&target_path);
@@ -745,6 +809,8 @@ fn main() {
             list_notes,
             list_trash,
             list_folders,
+            list_templates,
+            get_meeting_template,
             create_folder,
             rename_folder,
             delete_folder,
