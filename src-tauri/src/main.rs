@@ -723,10 +723,15 @@ fn save_attachment(name: String, bytes: Vec<u8>) -> Result<AttachmentResult, Str
     let path = dir.join(&candidate);
     fs::write(&path, bytes).map_err(|e| e.to_string())?;
 
-    let thumbs_dir = dir.join(".thumbnails");
+    // Deliberately NOT a dot-prefixed hidden folder: Tauri's asset-protocol
+    // scope matching (the glob crate under the hood) doesn't reliably match
+    // hidden files/dirs even under a "**" scope, which silently broke these
+    // thumbnails from loading in the webview. `assets/` (for pasted images)
+    // never had this problem for the same reason - no leading dot.
+    let thumbs_dir = dir.join("thumbnails");
     let _ = fs::create_dir_all(&thumbs_dir);
     let thumb = generate_thumbnail(&path, &thumbs_dir, &candidate)
-        .map(|f| format!("Attachments/.thumbnails/{}", f));
+        .map(|f| format!("Attachments/thumbnails/{}", f));
 
     Ok(AttachmentResult {
         path: format!("Attachments/{}", candidate),

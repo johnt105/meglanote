@@ -2688,17 +2688,42 @@ async function insertImage(ta, file) {
 }
 
 async function insertImageBytes(ta, bytes, name) {
+  const noteId = activeId;
   try {
     const relPath = await window.notesAPI.saveImage(name, bytes);
     const start = ta.selectionStart, end = ta.selectionEnd;
     const val = ta.value;
     const insertion = `![](${relPath})`;
-    ta.value = val.slice(0, start) + insertion + val.slice(end);
-    const pos = start + insertion.length;
-    ta.selectionStart = ta.selectionEnd = pos;
-    onEditorInput(ta);
+    const newBody = val.slice(0, start) + insertion + val.slice(end);
+    finishInsertion(noteId, ta, newBody, start + insertion.length);
   } catch (e) {
     console.error('image save failed', e);
+  }
+}
+
+// Saving an image/attachment is async (the attachment path also waits on
+// a QuickLook thumbnail, which can take a real moment for a big PDF), so
+// by the time it resolves the user may have switched notes or switched
+// from Edit to Preview. This writes the result into the note it was
+// actually generated for - captured as `noteId` before the save started,
+// not whatever `activeId` happens to be now - and only touches the
+// screen if that note is still the one being looked at: updates the
+// textarea in place if still in Edit mode (keeps focus/scroll/cursor),
+// or does a full re-render if the view has since moved to Preview (which
+// otherwise would silently show a stale, pre-insert version of the note
+// until something else happened to trigger a re-render).
+function finishInsertion(noteId, ta, newBody, caretPos) {
+  if (!noteId || !notes[noteId]) return;
+  notes[noteId].body = newBody;
+  notes[noteId].updatedAt = Date.now();
+  saveNoteToDisk(noteId);
+  if (activeId !== noteId) return;
+  if (mode === 'edit' && document.getElementById('editor') === ta) {
+    ta.value = newBody;
+    ta.selectionStart = ta.selectionEnd = caretPos;
+    checkAutocomplete(ta);
+  } else {
+    renderMain();
   }
 }
 
@@ -2720,6 +2745,7 @@ function mdLinkText(name) {
 }
 
 async function insertAttachmentBytes(ta, bytes, name) {
+  const noteId = activeId;
   try {
     const result = await window.notesAPI.saveAttachment(name, bytes);
     const savedName = result.path.split('/').pop();
@@ -2733,10 +2759,8 @@ async function insertAttachmentBytes(ta, bytes, name) {
       : `[📄 ${label}](${target})`;
     const start = ta.selectionStart, end = ta.selectionEnd;
     const val = ta.value;
-    ta.value = val.slice(0, start) + insertion + val.slice(end);
-    const pos = start + insertion.length;
-    ta.selectionStart = ta.selectionEnd = pos;
-    onEditorInput(ta);
+    const newBody = val.slice(0, start) + insertion + val.slice(end);
+    finishInsertion(noteId, ta, newBody, start + insertion.length);
   } catch (e) {
     console.error('attachment save failed', e);
     showMessageToast('Could not attach that file: ' + (e && e.message ? e.message : e), { error: true, sticky: true });
