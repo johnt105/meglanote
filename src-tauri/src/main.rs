@@ -26,6 +26,15 @@ struct UpdateInfo {
     notes: Option<String>,
 }
 
+#[derive(Serialize)]
+struct AttachmentResult {
+    /// Path (relative to the notes folder) of the copied attachment itself.
+    path: String,
+    /// Path (relative to the notes folder) of a generated preview image,
+    /// when one could be made - see `generate_thumbnail`.
+    thumb: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 struct Note {
     id: String,
@@ -83,6 +92,19 @@ fn notes_dir() -> PathBuf {
 
 fn assets_dir() -> PathBuf {
     let dir = notes_dir().join("assets");
+    if !dir.exists() {
+        let _ = fs::create_dir_all(&dir);
+    }
+    dir
+}
+
+/// Folder for non-image file attachments (PDFs, docs, etc.) inserted via
+/// the "Attach" toolbar button, drag-and-drop, or paste. Separate from
+/// assets_dir() (which holds pasted/dropped images referenced as inline
+/// `![]()` embeds) since attachments are referenced as plain links the
+/// user opens externally rather than rendered inline.
+fn attachments_dir() -> PathBuf {
+    let dir = notes_dir().join("Attachments");
     if !dir.exists() {
         let _ = fs::create_dir_all(&dir);
     }
@@ -634,6 +656,84 @@ fn save_image(name: String, bytes: Vec<u8>) -> Result<String, String> {
     Ok(format!("assets/{}", filename))
 }
 
+/// Best-effort preview thumbnail for an attached file, using macOS's
+/// QuickLook (`qlmanage -t`) - the same mechanism Finder itself uses to
+/// draw previews, so it covers PDFs, Office docs, images, and anything
+/// else with a QuickLook generator, without MeglaNote needing to know
+/// how to render each format itself. Renders into a scratch subfolder
+/// (qlmanage picks its own output filename) then moves whatever came out
+/// to a predictable name. Returns None - never an error - if qlmanage is
+/// unavailable or the file type has no preview; callers fall back to a
+/// plain link in that case.
+fn generate_thumbnail(source: &Path, thumbs_dir: &Path, candidate: &str) -> Option<String> {
+    let work_dir = thumbs_dir.join(format!(".{}-tmp", candidate));
+    let _ = fs::remove_dir_all(&work_dir);
+    fs::create_dir_all(&work_dir).ok()?;
+
+    let ran = std::process::Command::new("qlmanage")
+        .arg("-t")
+        .arg("-s").arg("640")
+        .arg("-o").arg(&work_dir)
+        .arg(source)
+        .output();
+
+    let produced = match ran {
+        Ok(out) if out.status.success() => fs::read_dir(&work_dir)
+            .ok()
+            .and_then(|entries| entries.filter_map(|e| e.ok()).next())
+            .map(|e| e.path()),
+        _ => None,
+    };
+
+    let result = produced.and_then(|src_png| {
+        let final_name = format!("{}.png", candidate);
+        fs::rename(&src_png, thumbs_dir.join(&final_name))
+            .ok()
+            .map(|_| final_name)
+    });
+
+    let _ = fs::remove_dir_all(&work_dir);
+    result
+}
+
+/// Copies an arbitrary file (dropped or pasted into the editor) into the
+/// notes folder's Attachments directory, generates a QuickLook preview
+/// thumbnail where possible, and returns both paths (relative to the
+/// notes folder) for the frontend to build a markdown link/embed from.
+/// Keeps the original filename where possible; if a file of that name
+/// already exists, appends " (2)", " (3)", etc. rather than overwriting.
+#[tauri::command]
+fn save_attachment(name: String, bytes: Vec<u8>) -> Result<AttachmentResult, String> {
+    let dir = attachments_dir();
+    let base_name = Path::new(&name)
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "attachment".to_string());
+    let (stem, ext) = match base_name.rfind('.') {
+        Some(i) if i > 0 => (base_name[..i].to_string(), base_name[i..].to_string()),
+        _ => (base_name.clone(), String::new()),
+    };
+    let mut candidate = base_name.clone();
+    let mut n = 2;
+    while dir.join(&candidate).exists() {
+        candidate = format!("{} ({}){}", stem, n, ext);
+        n += 1;
+    }
+    let path = dir.join(&candidate);
+    fs::write(&path, bytes).map_err(|e| e.to_string())?;
+
+    let thumbs_dir = dir.join(".thumbnails");
+    let _ = fs::create_dir_all(&thumbs_dir);
+    let thumb = generate_thumbnail(&path, &thumbs_dir, &candidate)
+        .map(|f| format!("Attachments/.thumbnails/{}", f));
+
+    Ok(AttachmentResult {
+        path: format!("Attachments/{}", candidate),
+        thumb,
+    })
+}
+
 fn debug_log(msg: &str) {
     use std::io::Write;
     let path = "/Users/johntaylor/Documents/MeglaNote Project/clip-debug.log";
@@ -856,6 +956,7 @@ fn main() {
             set_notes_dir,
             pick_notes_folder,
             save_image,
+            save_attachment,
             fetch_image_bytes,
             get_pending_clip,
             check_for_update,

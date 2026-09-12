@@ -527,6 +527,29 @@
   .ac-item.selected, .ac-item:hover { background: var(--link-bg); }
 
   #preview img { max-width: 100%; border-radius: 8px; margin: 10px 0; display: block; }
+  #preview .img-resize-wrap {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    margin: 10px 0;
+    line-height: 0;
+  }
+  #preview .img-resize-wrap img { margin: 0; display: block; }
+  #preview .img-resize-handle {
+    position: absolute;
+    right: -5px;
+    bottom: -5px;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    background: var(--accent, #4a90d9);
+    border: 2px solid var(--paper, #fff);
+    cursor: nwse-resize;
+    opacity: 0;
+    transition: opacity .15s;
+  }
+  #preview .img-resize-wrap:hover .img-resize-handle,
+  #preview .img-resize-wrap.resizing .img-resize-handle { opacity: 1; }
   #preview table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 0.95em; }
   #preview th, #preview td { border: 1px solid var(--rule); padding: 6px 12px; text-align: left; }
   #preview th { background: var(--paper); font-weight: 600; }
@@ -714,6 +737,7 @@ window.notesAPI = {
   setNotesDir: (path) => invoke('set_notes_dir', { path }),
   pickNotesFolder: () => invoke('pick_notes_folder'),
   saveImage: (name, bytes) => invoke('save_image', { name, bytes }),
+  saveAttachment: (name, bytes) => invoke('save_attachment', { name, bytes }),
   fetchImageBytes: (url) => invoke('fetch_image_bytes', { url }),
   getPendingClip: () => invoke('get_pending_clip'),
   checkForUpdate: () => invoke('check_for_update'),
@@ -979,6 +1003,80 @@ function renderMarkdown(body) {
     return `<a class="${cls}" data-title="${title.replace(/"/g,'&quot;')}">${title}</a>`;
   });
   return marked.parse(withMarks);
+}
+
+// Adds a small drag handle to the bottom-right corner of a rendered
+// preview image so it can be resized in place. Dragging updates the
+// image's on-screen width live; releasing writes the chosen width back
+// into the note's markdown (as a width="" attribute) so it sticks.
+function makeImageResizable(img, index) {
+  const wrap = document.createElement('span');
+  wrap.className = 'img-resize-wrap';
+  img.parentNode.insertBefore(wrap, img);
+  wrap.appendChild(img);
+  const handle = document.createElement('span');
+  handle.className = 'img-resize-handle';
+  wrap.appendChild(handle);
+
+  handle.addEventListener('click', (e) => {
+    // Don't let a plain click on the handle bubble up to a wrapping
+    // <a> (e.g. an attachment thumbnail) and open the linked file.
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = img.getBoundingClientRect().width;
+    wrap.classList.add('resizing');
+    const onMove = (ev) => {
+      const newWidth = Math.max(40, Math.round(startWidth + (ev.clientX - startX)));
+      img.style.width = newWidth + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      wrap.classList.remove('resizing');
+      const finalWidth = Math.max(40, Math.round(img.getBoundingClientRect().width));
+      resizeImageInBody(index, finalWidth);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+// Rewrites the Nth image (in source order - counting both `![]()` markdown
+// images and raw `<img>` tags) in the active note's body to carry the
+// given pixel width, converting a plain markdown image into an <img> tag
+// the first time it's resized (that's the only way to carry a width
+// alongside a plain relative path). Leaves everything else untouched.
+function resizeImageInBody(index, newWidth) {
+  if (!activeId || !notes[activeId]) return;
+  const body = notes[activeId].body || '';
+  const re = /!\[([^\]]*)\]\((<[^>]*>|[^)\s]+)\)|<img\b[^>]*>/g;
+  let count = -1;
+  let matched = false;
+  const newBody = body.replace(re, (full, alt, target) => {
+    count++;
+    if (count !== index) return full;
+    matched = true;
+    if (/^<img\b/i.test(full)) {
+      if (/\swidth\s*=\s*"[^"]*"/i.test(full)) {
+        return full.replace(/\swidth\s*=\s*"[^"]*"/i, ` width="${newWidth}"`);
+      }
+      return full.replace(/^<img\b/i, `<img width="${newWidth}"`);
+    }
+    let mdSrc = target;
+    if (mdSrc.startsWith('<') && mdSrc.endsWith('>')) mdSrc = mdSrc.slice(1, -1);
+    const escAlt = (alt || '').replace(/"/g, '&quot;');
+    const escSrc = mdSrc.replace(/"/g, '&quot;');
+    return `<img src="${escSrc}" alt="${escAlt}" width="${newWidth}">`;
+  });
+  if (!matched) return;
+  updateActive('body', newBody);
+  renderMain();
 }
 
 /* Split `text` on lines that are exactly `marker` (whitespace-trimmed). */
@@ -1772,9 +1870,12 @@ function renderMain() {
     ta.addEventListener('dragover', (e) => e.preventDefault());
     ta.addEventListener('drop', async (e) => {
       e.preventDefault();
-      const files = Array.from(e.dataTransfer?.files || []).filter(f => f.type.startsWith('image/'));
-      if (files.length) {
+      const allFiles = Array.from(e.dataTransfer?.files || []);
+      const files = allFiles.filter(f => f.type.startsWith('image/'));
+      const otherFiles = allFiles.filter(f => !f.type.startsWith('image/'));
+      if (files.length || otherFiles.length) {
         for (const file of files) await insertImage(ta, file);
+        for (const file of otherFiles) await insertAttachment(ta, file);
         return;
       }
       // No actual file - likely an <img> dragged out of a web page instead
@@ -1805,6 +1906,12 @@ function renderMain() {
         e.preventDefault();
         const file = imgItem.getAsFile();
         if (file) await insertImage(ta, file);
+        return;
+      }
+      const pastedFiles = Array.from(e.clipboardData?.files || []);
+      if (pastedFiles.length) {
+        e.preventDefault();
+        for (const file of pastedFiles) await insertAttachment(ta, file);
       }
     });
     ta.focus();
@@ -1847,6 +1954,7 @@ function renderMain() {
         img.src = window.__TAURI__.core.convertFileSrc(notesDirPath + '/' + src);
       }
     });
+    document.querySelectorAll('#preview img').forEach((img, idx) => makeImageResizable(img, idx));
   }
 
   document.querySelectorAll('#backlinks a[data-id]').forEach(a => {
@@ -2591,6 +2699,47 @@ async function insertImageBytes(ta, bytes, name) {
     onEditorInput(ta);
   } catch (e) {
     console.error('image save failed', e);
+  }
+}
+
+async function insertAttachment(ta, file) {
+  const buf = await file.arrayBuffer();
+  const bytes = Array.from(new Uint8Array(buf));
+  const name = file.name || 'attachment';
+  await insertAttachmentBytes(ta, bytes, name);
+}
+
+// A link destination wrapped in <...> (per CommonMark) so filenames with
+// spaces or parentheses don't break the `[text](target)` syntax.
+function mdLinkTarget(path) {
+  return '<' + path.replace(/\\/g, '\\\\').replace(/>/g, '\\>') + '>';
+}
+
+function mdLinkText(name) {
+  return name.replace(/\\/g, '\\\\').replace(/([\[\]])/g, '\\$1');
+}
+
+async function insertAttachmentBytes(ta, bytes, name) {
+  try {
+    const result = await window.notesAPI.saveAttachment(name, bytes);
+    const savedName = result.path.split('/').pop();
+    const label = mdLinkText(savedName);
+    const target = mdLinkTarget(result.path);
+    // When QuickLook could generate a preview, embed it as a linked image
+    // (renders inline in the note, clicking still opens the real file).
+    // Otherwise fall back to a plain link.
+    const insertion = result.thumb
+      ? `[![${label}](${mdLinkTarget(result.thumb)})](${target})`
+      : `[📄 ${label}](${target})`;
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    const val = ta.value;
+    ta.value = val.slice(0, start) + insertion + val.slice(end);
+    const pos = start + insertion.length;
+    ta.selectionStart = ta.selectionEnd = pos;
+    onEditorInput(ta);
+  } catch (e) {
+    console.error('attachment save failed', e);
+    showMessageToast('Could not attach that file: ' + (e && e.message ? e.message : e), { error: true, sticky: true });
   }
 }
 
