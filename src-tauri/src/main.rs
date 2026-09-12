@@ -529,6 +529,35 @@ fn reveal_folder() -> Result<(), String> {
     Ok(())
 }
 
+/// Opens a link from a note in the appropriate outside application instead
+/// of navigating the app's own window: a web URL goes to the default
+/// browser, a mailto/other-scheme link to its handler, and a bare relative
+/// path (e.g. a PDF attachment sitting next to the note) is resolved
+/// against the notes folder and opened with its default app (Preview,
+/// for a PDF).
+#[tauri::command]
+fn open_external(target: String) -> Result<(), String> {
+    let trimmed = target.trim();
+    if trimmed.is_empty() {
+        return Err("Nothing to open".into());
+    }
+    let arg: String = if Url::parse(trimmed).is_ok() {
+        trimmed.to_string()
+    } else {
+        let p = Path::new(trimmed);
+        if p.is_absolute() {
+            trimmed.to_string()
+        } else {
+            notes_dir().join(trimmed).to_string_lossy().to_string()
+        }
+    };
+    std::process::Command::new("open")
+        .arg(arg)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 fn load_settings() -> String {
     fs::read_to_string(settings_path()).unwrap_or_else(|_| "{}".to_string())
@@ -819,6 +848,7 @@ fn main() {
             restore_note,
             purge_note,
             reveal_folder,
+            open_external,
             load_settings,
             save_settings,
             get_app_version,

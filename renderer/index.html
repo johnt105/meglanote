@@ -346,6 +346,7 @@
     font-size: 22px; font-weight: 700;
     border: none; background: transparent; color: var(--ink);
     flex: 1; min-width: 0; padding: 4px 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   #title-input:focus { outline: none; }
   #title-input::placeholder { color: var(--graphite); opacity: 0.6; }
@@ -515,12 +516,13 @@
   .trash-item .actions { display: flex; gap: 8px; flex-shrink: 0; }
 
   /* Autocomplete */
-  #ac-box {
+  #ac-box, #tag-ac-box {
     position: fixed; z-index: 50;
     background: var(--card); border: 1px solid var(--rule); border-radius: 6px;
     box-shadow: 0 6px 18px rgba(0,0,0,0.25);
     max-height: 220px; overflow-y: auto; min-width: 200px;
   }
+  #tag-ac-box { min-width: 140px; }
   .ac-item { padding: 7px 12px; font-size: 13px; cursor: pointer; }
   .ac-item.selected, .ac-item:hover { background: var(--link-bg); }
 
@@ -704,6 +706,7 @@ window.notesAPI = {
   restore: (id) => invoke('restore_note', { id }),
   purge: (id) => invoke('purge_note', { id }),
   revealFolder: () => invoke('reveal_folder'),
+  openExternal: (target) => invoke('open_external', { target }),
   loadSettings: () => invoke('load_settings'),
   saveSettings: (json) => invoke('save_settings', { json }),
   getAppVersion: () => invoke('get_app_version'),
@@ -1650,7 +1653,7 @@ function renderMain() {
   main.innerHTML = `
     <div id="toolbar">
       <button class="toolbtn" id="back-btn">&larr; Notes</button>
-      <input id="title-input" placeholder="Untitled" value="${escapeHtml(note.title)}" />
+      <input id="title-input" placeholder="Untitled" value="${escapeHtml(note.title)}" title="${escapeHtml(note.title)}" />
       <button class="toolbtn ${mode==='edit'?'active-mode':''}" id="edit-toggle">Edit</button>
       <button class="toolbtn ${mode==='preview'?'active-mode':''}" id="preview-toggle">Preview</button>
       ${mode === 'edit' ? `
@@ -1695,6 +1698,7 @@ function renderMain() {
 
   document.getElementById('title-input').addEventListener('input', e => {
     updateActive('title', e.target.value);
+    e.target.title = e.target.value;
     renderSidebar();
   });
   if (focusTitleOnRender) {
@@ -1733,7 +1737,16 @@ function renderMain() {
     });
   });
   const tagInput = document.getElementById('tag-input');
+  tagInput.addEventListener('input', () => checkTagAutocomplete(tagInput));
+  tagInput.addEventListener('focus', () => checkTagAutocomplete(tagInput));
+  tagInput.addEventListener('blur', () => setTimeout(closeTagAutocomplete, 150));
   tagInput.addEventListener('keydown', (e) => {
+    if (tac.open) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); tac.index = (tac.index + 1) % tac.matches.length; renderTagAutocomplete(tagInput); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); tac.index = (tac.index - 1 + tac.matches.length) % tac.matches.length; renderTagAutocomplete(tagInput); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); confirmTagAutocomplete(tagInput, tac.index); return; }
+      if (e.key === 'Escape') { e.preventDefault(); closeTagAutocomplete(); return; }
+    }
     if (e.key === 'Enter') {
       e.preventDefault();
       const raw = tagInput.value.trim().replace(/^#/, '');
@@ -1802,6 +1815,18 @@ function renderMain() {
         const existing = findByTitle(title);
         if (existing) { selectNote(existing.id); }
         else { createNote(title); }
+      });
+    });
+    // Any other link — a web URL or a relative path to a local file such
+    // as a PDF attachment — should hand off to the OS instead of
+    // navigating this app's own window.
+    document.querySelectorAll('#preview a:not(.wikilink)').forEach(a => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        const href = a.getAttribute('href') || '';
+        if (href) window.notesAPI.openExternal(href).catch(err => {
+          showMessageToast('Could not open that link: ' + (err && err.message ? err.message : err), { error: true, sticky: true });
+        });
       });
     });
     document.querySelectorAll('#preview input[type="checkbox"]').forEach((cb, idx) => {
@@ -2020,6 +2045,7 @@ function renderTrash() {
 
 /* ---------- Autocomplete for [[links]] ---------- */
 let ac = { open: false, start: -1, query: '', matches: [], index: 0 };
+let tac = { open: false, matches: [], index: 0 };
 
 function closeAutocomplete() {
   ac.open = false;
@@ -2106,6 +2132,64 @@ function getCaretCoordinates(el, position) {
   const left = spanRect.left - divRect.left - el.scrollLeft;
   document.body.removeChild(div);
   return { top: rect.top + top, left: Math.min(rect.left + left, window.innerWidth - 220) };
+}
+
+/* ---------- Tag autocomplete ---------- */
+function closeTagAutocomplete() {
+  tac.open = false;
+  const box = document.getElementById('tag-ac-box');
+  if (box) box.remove();
+}
+
+function checkTagAutocomplete(input) {
+  const note = activeId ? notes[activeId] : null;
+  const current = new Set((note && note.tags) || []);
+  const q = input.value.trim().replace(/^#/, '').toLowerCase();
+  const candidates = allTags().filter(t => !current.has(t));
+  tac.matches = (q
+    ? candidates.filter(t => t.toLowerCase().includes(q))
+    : candidates
+  ).slice(0, 8);
+  if (tac.matches.length === 0) { closeTagAutocomplete(); return; }
+  tac.open = true;
+  tac.index = 0;
+  renderTagAutocomplete(input);
+}
+
+function renderTagAutocomplete(input) {
+  let box = document.getElementById('tag-ac-box');
+  if (!tac.open || tac.matches.length === 0) { closeTagAutocomplete(); return; }
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'tag-ac-box';
+    document.body.appendChild(box);
+  }
+  box.innerHTML = tac.matches.map((t, i) =>
+    `<div class="ac-item ${i === tac.index ? 'selected' : ''}" data-i="${i}">#${escapeHtml(t)}</div>`
+  ).join('');
+  box.querySelectorAll('.ac-item').forEach(el => {
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      confirmTagAutocomplete(input, parseInt(el.dataset.i, 10));
+    });
+  });
+  const rect = input.getBoundingClientRect();
+  box.style.left = rect.left + 'px';
+  box.style.top = (rect.bottom + 4) + 'px';
+}
+
+function confirmTagAutocomplete(input, index) {
+  const chosen = tac.matches[index];
+  const note = activeId ? notes[activeId] : null;
+  closeTagAutocomplete();
+  if (!chosen || !note) return;
+  if (!(note.tags || []).includes(chosen)) {
+    updateActive('tags', [...(note.tags || []), chosen]);
+    renderMain();
+    renderSidebar();
+  }
+  const fresh = document.getElementById('tag-input');
+  if (fresh) { fresh.value = ''; fresh.focus(); }
 }
 
 /* ---------- Editor input / shortcuts ---------- */
