@@ -15,14 +15,20 @@
 #        export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/meglanote.key)"
 #        export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""   # or your password if you set one
 #
-# Each release, just run:  ./release.sh 1.1.0
+# Each release, run:  ./release.sh 1.1.0 "What's new in this version"
+# The description is optional. It's shown in the app's "Update available"
+# popup and on the GitHub release page.
 
 set -euo pipefail
 
 VERSION="${1:-}"
+NOTES="${2:-}"
 if [ -z "$VERSION" ]; then
-  echo "Usage: ./release.sh <version>   e.g. ./release.sh 1.1.0"
+  echo "Usage: ./release.sh <version> [\"what's new\"]   e.g. ./release.sh 1.1.0 \"Fixed X, added Y\""
   exit 1
+fi
+if [ -z "$NOTES" ]; then
+  NOTES="MeglaNote v$VERSION"
 fi
 
 if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
@@ -44,7 +50,9 @@ echo "==> Building (this can take a few minutes)"
 npm run tauri build
 
 BUNDLE_DIR="src-tauri/target/release/bundle"
-DMG=$(find "$BUNDLE_DIR/dmg" -name "*.dmg" | head -1)
+# Match this version's .dmg specifically - older versions' .dmg files stay
+# in the folder between builds.
+DMG=$(find "$BUNDLE_DIR/dmg" -name "*_${VERSION}_*.dmg" | head -1)
 APP_TAR=$(find "$BUNDLE_DIR/macos" -name "*.app.tar.gz" | head -1)
 APP_SIG=$(find "$BUNDLE_DIR/macos" -name "*.app.tar.gz.sig" | head -1)
 
@@ -65,19 +73,19 @@ if [ -z "$REPO_SLUG" ]; then
   REPO_SLUG="REPLACE_WITH_GITHUB_USERNAME/meglanote"
 fi
 
-cat > "$BUNDLE_DIR/latest.json" <<JSON
-{
-  "version": "$VERSION",
-  "notes": "See the GitHub release notes.",
-  "pub_date": "$PUBDATE",
-  "platforms": {
-    "darwin-aarch64": {
-      "signature": "$SIG_CONTENT",
-      "url": "https://github.com/$REPO_SLUG/releases/download/v$VERSION/$(basename "$APP_TAR")"
-    }
-  }
-}
-JSON
+# Written with node so quotes etc. in the release notes can't break the JSON.
+VERSION="$VERSION" NOTES="$NOTES" PUBDATE="$PUBDATE" SIG_CONTENT="$SIG_CONTENT" \
+URL="https://github.com/$REPO_SLUG/releases/download/v$VERSION/$(basename "$APP_TAR")" \
+OUT="$BUNDLE_DIR/latest.json" node -e "
+  const e = process.env;
+  const manifest = {
+    version: e.VERSION,
+    notes: e.NOTES,
+    pub_date: e.PUBDATE,
+    platforms: { 'darwin-aarch64': { signature: e.SIG_CONTENT, url: e.URL } }
+  };
+  require('fs').writeFileSync(e.OUT, JSON.stringify(manifest, null, 2) + '\\n');
+"
 
 echo ""
 echo "==> Build artifacts ready:"
@@ -92,12 +100,13 @@ if command -v gh >/dev/null 2>&1; then
   gh release create "v$VERSION" \
     "$DMG" "$APP_TAR" "$BUNDLE_DIR/latest.json" \
     --title "v$VERSION" \
-    --notes "MeglaNote v$VERSION"
+    --notes "$NOTES"
   echo "Done - your wife's app will pick this up next time it checks for updates."
 else
   echo "The 'gh' command isn't installed, so finish this manually:"
   echo "  1. Go to https://github.com/$REPO_SLUG/releases/new"
   echo "  2. Tag: v$VERSION"
   echo "  3. Upload these three files: the .dmg, the .app.tar.gz, and latest.json"
-  echo "  4. Publish the release"
+  echo "  4. Paste in the release notes: $NOTES"
+  echo "  5. Publish the release"
 fi
