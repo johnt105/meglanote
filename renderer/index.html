@@ -309,6 +309,36 @@
     max-width: 280px; font-size: 13px;
   }
   #message-toast.error { border-color: #d1453b; }
+  #conflict-toast {
+    position: fixed; right: 18px; bottom: 18px; z-index: 95;
+    background: var(--card); border: 1px solid #FF9500; border-radius: 10px;
+    padding: 14px 16px; box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+    max-width: 300px; font-size: 13px;
+  }
+  #conflict-toast .t { font-weight: 700; margin-bottom: 4px; }
+  #conflict-toast .n { color: var(--graphite); font-size: 12px; }
+  #conflict-toast .actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  #cleanup-backdrop {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.35);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #cleanup-card {
+    background: var(--card); border-radius: 10px; padding: 24px;
+    width: 480px; max-width: 90vw; max-height: 80vh; display: flex; flex-direction: column;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.3); font-size: 13px;
+  }
+  #cleanup-card h2 { margin: 0 0 8px; font-size: 18px; }
+  #cleanup-card .n { color: var(--graphite); margin-bottom: 12px; }
+  #cleanup-list {
+    overflow-y: auto; flex: 1; min-height: 0; margin: 0 0 14px; padding: 8px 10px;
+    background: var(--paper); border: 1px solid var(--rule); border-radius: 6px;
+    font-family: 'ui-monospace', 'SF Mono', Menlo, monospace; font-size: 12px;
+  }
+  #cleanup-list div { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+  #cleanup-list span:first-child { word-break: break-all; }
+  #cleanup-list span:last-child { color: var(--graphite); white-space: nowrap; }
+  #cleanup-card .actions { display: flex; gap: 8px; justify-content: flex-end; }
   #message-toast .actions { margin-top: 8px; display: flex; gap: 8px; }
 
   /* Sidebar footer — utility links */
@@ -711,6 +741,22 @@ let confirmDeleteId = null;
 let purgeConfirmId = null;
 let expandedBacklinksFor = null;
 
+// What each note's file looked like the last time this app itself read or
+// wrote it (id -> noteSnapshot string). When the folder watcher reports a
+// change, comparing against this tells our own saves (ignore) apart from
+// edits made elsewhere - the iPhone app, another Mac, Finder.
+const lastDiskState = {};
+// Notes changed elsewhere while they had unsaved edits here:
+// id -> the version now on disk. Autosave pauses for these until the
+// person picks which version to keep.
+const externalConflicts = {};
+function noteSnapshot(n) {
+  return JSON.stringify([n.title || '', n.body || '', n.tags || [], !!n.pinned, n.color || '', n.meetingDate || '']);
+}
+function rememberDiskState(list) {
+  list.forEach(n => { lastDiskState[n.id] = noteSnapshot(n); });
+}
+
 const invoke = window.__TAURI__.core.invoke;
 window.notesAPI = {
   list: () => invoke('list_notes'),
@@ -721,10 +767,21 @@ window.notesAPI = {
   createFolder: (name) => invoke('create_folder', { name }),
   renameFolder: (oldName, newName) => invoke('rename_folder', { oldName, newName }),
   deleteFolder: (name) => invoke('delete_folder', { name }),
-  save: (id, title, body, tags, pinned, color, folder, meetingDate) => invoke('save_note', {
-    oldId: id, title, body, tags: tags || [], pinned: !!pinned, color: color || '', folder: folder || '',
-    meetingDate: meetingDate !== undefined ? meetingDate : ((notes[id] && notes[id].meetingDate) || '')
-  }),
+  // Every save goes through here, so it's also where we record exactly
+  // what this app last wrote to each note's file - see lastDiskState.
+  save: async (id, title, body, tags, pinned, color, folder, meetingDate) => {
+    const md = meetingDate !== undefined ? meetingDate : ((notes[id] && notes[id].meetingDate) || '');
+    const newId = await invoke('save_note', {
+      oldId: id, title, body, tags: tags || [], pinned: !!pinned, color: color || '', folder: folder || '',
+      meetingDate: md
+    });
+    if (newId) lastDiskState[newId] = noteSnapshot({ title, body, tags, pinned, color, meetingDate: md });
+    return newId;
+  },
+  readNote: (id) => invoke('read_note', { id }),
+  watchNotesDir: () => invoke('watch_notes_dir'),
+  findUnusedFiles: () => invoke('find_unused_files'),
+  deleteUnusedFiles: (paths) => invoke('delete_unused_files', { paths }),
   delete: (id) => invoke('delete_note', { id }),
   restore: (id) => invoke('restore_note', { id }),
   purge: (id) => invoke('purge_note', { id }),
@@ -828,6 +885,7 @@ async function loadNotes() {
   const list = await window.notesAPI.list();
   notes = {};
   list.forEach(n => { notes[n.id] = n; });
+  rememberDiskState(list);
   if (Object.keys(notes).length === 0) {
     seedNotes();
     for (const n of Object.values(notes)) {
@@ -843,6 +901,8 @@ async function loadNotes() {
   }
   render();
   refreshTrashCount();
+  // (Re)start watching this notes folder for changes made outside the app.
+  window.notesAPI.watchNotesDir().catch(e => window.notesAPI.log('watchNotesDir failed: ' + e));
 }
 
 async function refreshFolders() {
@@ -871,24 +931,54 @@ function updateTrashBadge() {
   }
 }
 
-let saveTimer = null;
-function saveNoteToDisk(id) {
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    const n = notes[id];
-    if (!n) return;
-    const newId = await window.notesAPI.save(n.id, n.title, n.body, n.tags, n.pinned, n.color, n.folder);
-    if (newId && newId !== id && notes[id]) {
-      delete notes[id];
-      n.id = newId;
-      notes[newId] = n;
-      if (activeId === id) activeId = newId;
-      // Only refresh the sidebar (a separate part of the page) — never
-      // re-render the note toolbar/title field itself here, or a rename
-      // mid-keystroke would recreate the input and steal focus.
-      renderSidebar();
+// One pending autosave per note (previously a single shared timer, so
+// editing note B within a second of note A could drop A's last save).
+const saveTimers = {};
+function saveNoteToDisk(id, delay) {
+  if (saveTimers[id]) clearTimeout(saveTimers[id]);
+  saveTimers[id] = setTimeout(() => {
+    delete saveTimers[id];
+    writeNoteNow(id);
+  }, delay === undefined ? 900 : delay);
+}
+
+function hasUnsavedEdits(id) {
+  if (saveTimers[id]) return true;
+  const n = notes[id];
+  return !!n && lastDiskState[id] !== undefined && noteSnapshot(n) !== lastDiskState[id];
+}
+
+// Saves any notes still waiting on their autosave timer, right now.
+async function flushPendingSaves() {
+  const ids = Object.keys(saveTimers);
+  ids.forEach(id => { clearTimeout(saveTimers[id]); delete saveTimers[id]; });
+  for (const id of ids) await writeNoteNow(id);
+}
+
+async function writeNoteNow(id) {
+  const n = notes[id];
+  if (!n) return;
+  // Changed elsewhere while being edited here - don't overwrite the
+  // other version until the person has chosen (see showConflictToast).
+  if (externalConflicts[id]) return;
+  const newId = await window.notesAPI.save(n.id, n.title, n.body, n.tags, n.pinned, n.color, n.folder);
+  if (newId && newId !== id && notes[id]) {
+    delete notes[id];
+    n.id = newId;
+    notes[newId] = n;
+    if (activeId === id) activeId = newId;
+    // Typing carried on while the rename was saving: that autosave was
+    // queued under the old id, so move it across rather than lose it.
+    if (saveTimers[id]) {
+      clearTimeout(saveTimers[id]);
+      delete saveTimers[id];
+      saveNoteToDisk(newId);
     }
-  }, 900);
+    // Only refresh the sidebar (a separate part of the page) — never
+    // re-render the note toolbar/title field itself here, or a rename
+    // mid-keystroke would recreate the input and steal focus.
+    renderSidebar();
+  }
 }
 
 function seedNotes() {
@@ -1136,6 +1226,10 @@ function makeHeadingsCollapsible(container, noteId, keyCounts, collapsedSet) {
     const group = [];
     let j = i + 1;
     while (j < children.length) {
+      // A horizontal rule (---) is a hard section break: it ends the
+      // current group instead of being swallowed into it, so it stays
+      // visible even when the heading above is collapsed.
+      if (children[j].tagName === 'HR') break;
       const sm = children[j].tagName.match(/^H([1-6])$/);
       if (sm && parseInt(sm[1], 10) <= level) break;
       group.push(children[j]);
@@ -1574,11 +1668,15 @@ async function restoreFromTrash(id) {
   const list = await window.notesAPI.list();
   notes = {};
   list.forEach(n => { notes[n.id] = n; });
+  rememberDiskState(list);
   await loadTrash();
   render();
 }
 
 async function purgeFromTrash(id) {
+  // Purging also deletes images/attachments nothing else uses, so make
+  // sure every note's latest edits are on disk before that check runs.
+  await flushPendingSaves();
   await window.notesAPI.purge(id);
   purgeConfirmId = null;
   await loadTrash();
@@ -2963,6 +3061,220 @@ document.getElementById('prefs-name').addEventListener('input', (e) => {
 
 /* ---------- Native menu bridge ---------- */
 window.__TAURI__.event.listen('menu-new-note', () => createNote(''));
+
+window.__TAURI__.event.listen('menu-cleanup-unused', () => openUnusedFilesCleanup());
+
+/* ---------- Changes made outside the app ----------
+   The backend watches the notes folder and sends "notes-changed" with the
+   ids of any notes whose files were touched (batched). Each one is read
+   back from disk and compared with what this app last wrote/read:
+   - same as what we last wrote        -> our own save, ignore
+   - changed, no unsaved edits here    -> quietly load the new version
+   - changed, with unsaved edits here  -> don't overwrite; ask (conflict)
+   - new file                          -> add it to the list
+   - file gone                         -> remove it from the list */
+let externalChangeQueue = Promise.resolve();
+function queueExternalCheck(ids, trashChanged) {
+  externalChangeQueue = externalChangeQueue
+    .then(() => applyExternalChanges(ids, trashChanged))
+    .catch(e => window.notesAPI.log('applyExternalChanges failed: ' + e));
+}
+window.__TAURI__.event.listen('notes-changed', (event) => {
+  const p = event.payload || {};
+  queueExternalCheck(p.ids || [], !!p.trash);
+});
+// Belt and braces: re-check the open note whenever the window comes back
+// to the front, in case a change arrived while the Mac was asleep.
+window.addEventListener('focus', () => {
+  if (activeId && notes[activeId]) queueExternalCheck([activeId], false);
+});
+
+async function applyExternalChanges(ids, trashChanged) {
+  if (!ready) return;
+  let listChanged = false;
+  let activeTouched = false;
+  let newConflict = false;
+  const added = [];
+  const removed = [];
+  for (const id of ids) {
+    const disk = await window.notesAPI.readNote(id);
+    const mem = notes[id];
+    if (!disk) {
+      // Unknown ids are our own renames/deletes, already handled.
+      if (!mem || hasUnsavedEdits(id)) continue;
+      delete notes[id];
+      delete lastDiskState[id];
+      delete externalConflicts[id];
+      removed.push(id);
+      listChanged = true;
+      continue;
+    }
+    const diskSnap = noteSnapshot(disk);
+    if (!mem) {
+      notes[id] = disk;
+      lastDiskState[id] = diskSnap;
+      added.push(id);
+      listChanged = true;
+      continue;
+    }
+    if (diskSnap === lastDiskState[id]) continue;            // our own save
+    if (diskSnap === noteSnapshot(mem)) {                     // already identical
+      lastDiskState[id] = diskSnap;
+      delete externalConflicts[id];
+      continue;
+    }
+    if (hasUnsavedEdits(id)) {
+      externalConflicts[id] = disk;
+      newConflict = true;
+      continue;
+    }
+    adoptDiskVersion(id, disk);
+    listChanged = true;
+    if (id === activeId) activeTouched = true;
+  }
+
+  if (removed.includes(activeId)) {
+    // A rename elsewhere shows up as one note removed + one added: follow it.
+    if (added.length === 1) activeId = added[0];
+    else {
+      const rest = Object.keys(notes);
+      activeId = rest.length ? rest.sort((a, b) => notes[b].updatedAt - notes[a].updatedAt)[0] : null;
+    }
+    activeTouched = true;
+  }
+  if (trashChanged) {
+    if (panel === 'trash') { await loadTrash(); renderMain(); }
+    else refreshTrashCount();
+  }
+  if (listChanged) {
+    await refreshFolders();
+    renderSidebar();
+  }
+  if (activeTouched && panel === 'note') refreshOpenNoteView();
+  if (newConflict) showConflictToast();
+}
+
+function adoptDiskVersion(id, disk) {
+  const mem = notes[id];
+  ['title', 'body', 'tags', 'pinned', 'color', 'meetingDate', 'updatedAt'].forEach(k => { mem[k] = disk[k]; });
+  lastDiskState[id] = noteSnapshot(disk);
+  delete externalConflicts[id];
+}
+
+// Shows the open note's latest content. While typing in the editor, update
+// the text in place (keeps focus and roughly the caret) rather than
+// rebuilding the whole view.
+function refreshOpenNoteView() {
+  const n = activeId ? notes[activeId] : null;
+  const ta = document.getElementById('editor');
+  if (n && mode === 'edit' && ta && document.activeElement === ta) {
+    const pos = ta.selectionStart;
+    ta.value = n.body;
+    ta.selectionStart = ta.selectionEnd = Math.min(pos, n.body.length);
+    const ti = document.getElementById('title-input');
+    if (ti) ti.value = n.title;
+  } else {
+    renderMain();
+  }
+}
+
+function closeConflictToast() {
+  const el = document.getElementById('conflict-toast');
+  if (el) el.remove();
+}
+// Handles one conflict at a time; resolving it shows the next, if any.
+function showConflictToast() {
+  closeConflictToast();
+  const id = Object.keys(externalConflicts).find(k => notes[k]);
+  if (!id) return;
+  const n = notes[id];
+  const box = document.createElement('div');
+  box.id = 'conflict-toast';
+  box.innerHTML = `
+    <div class="t">“${escapeHtml(n.title || 'Untitled')}” was changed on another device</div>
+    <div class="n">It changed while you had unsaved edits here. Which version do you want to keep?</div>
+    <div class="actions">
+      <button class="toolbtn active-mode" id="conflict-mine">Keep mine</button>
+      <button class="toolbtn" id="conflict-theirs">Use the other version</button>
+    </div>`;
+  document.body.appendChild(box);
+  document.getElementById('conflict-mine').addEventListener('click', () => {
+    delete externalConflicts[id];
+    saveNoteToDisk(id, 0);
+    showConflictToast();
+  });
+  document.getElementById('conflict-theirs').addEventListener('click', () => {
+    const disk = externalConflicts[id];
+    if (saveTimers[id]) { clearTimeout(saveTimers[id]); delete saveTimers[id]; }
+    if (disk && notes[id]) adoptDiskVersion(id, disk);
+    delete externalConflicts[id];
+    renderSidebar();
+    if (id === activeId && panel === 'note') renderMain();
+    showConflictToast();
+  });
+}
+
+/* ---------- Clean Up Unused Files (File menu) ---------- */
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+function closeUnusedFilesCleanup() {
+  const el = document.getElementById('cleanup-backdrop');
+  if (el) el.remove();
+}
+async function openUnusedFilesCleanup() {
+  closeUnusedFilesCleanup();
+  // Make sure anything just pasted/dropped is saved first, or its image
+  // would look unused.
+  await flushPendingSaves();
+  const backdrop = document.createElement('div');
+  backdrop.id = 'cleanup-backdrop';
+  backdrop.innerHTML = `<div id="cleanup-card"><h2>Clean Up Unused Files</h2><div class="n">Looking for images and attachments no note uses…</div></div>`;
+  document.body.appendChild(backdrop);
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeUnusedFilesCleanup(); });
+
+  let files;
+  try {
+    files = await window.notesAPI.findUnusedFiles();
+  } catch (e) {
+    closeUnusedFilesCleanup();
+    showMessageToast('Could not check for unused files: ' + (e && e.message ? e.message : e), { error: true, sticky: true });
+    return;
+  }
+  const card = document.getElementById('cleanup-card');
+  if (!card) return;
+  if (!files.length) {
+    card.innerHTML = `<h2>Clean Up Unused Files</h2>
+      <div class="n">Nothing to clean up — every image and attachment is used by a note.</div>
+      <div class="actions"><button class="toolbtn active-mode" id="cleanup-close">OK</button></div>`;
+    document.getElementById('cleanup-close').addEventListener('click', closeUnusedFilesCleanup);
+    return;
+  }
+  const total = files.reduce((sum, f) => sum + f.size, 0);
+  card.innerHTML = `<h2>Clean Up Unused Files</h2>
+    <div class="n">${files.length} file${files.length === 1 ? '' : 's'} (${fmtBytes(total)}) aren't used by any note, including notes in Trash. Delete them? This can't be undone.</div>
+    <div id="cleanup-list">${files.map(f => `<div><span>${escapeHtml(f.path)}</span><span>${fmtBytes(f.size)}</span></div>`).join('')}</div>
+    <div class="actions">
+      <button class="toolbtn" id="cleanup-cancel">Cancel</button>
+      <button class="toolbtn danger" id="cleanup-confirm">Delete ${files.length} file${files.length === 1 ? '' : 's'}</button>
+    </div>`;
+  document.getElementById('cleanup-cancel').addEventListener('click', closeUnusedFilesCleanup);
+  document.getElementById('cleanup-confirm').addEventListener('click', async () => {
+    const btn = document.getElementById('cleanup-confirm');
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+    try {
+      const removed = await window.notesAPI.deleteUnusedFiles(files.map(f => f.path));
+      closeUnusedFilesCleanup();
+      showMessageToast(`Deleted ${removed} unused file${removed === 1 ? '' : 's'}.`);
+    } catch (e) {
+      closeUnusedFilesCleanup();
+      showMessageToast('Could not delete files: ' + (e && e.message ? e.message : e), { error: true, sticky: true });
+    }
+  });
+}
 
 /* ---------- Web clipper ---------- */
 window.__TAURI__.event.listen('clip-received', (event) => {

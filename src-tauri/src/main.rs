@@ -333,16 +333,143 @@ fn purge_old_trash() {
         Some(c) => c,
         None => return,
     };
+    let mut purged_bodies = Vec::new();
     for note in read_notes_recursive(&dir) {
         let path = dir.join(format!("{}.md", note.id));
         if let Ok(meta) = fs::metadata(&path) {
             if let Ok(modified) = meta.modified() {
-                if modified < cutoff {
-                    let _ = fs::remove_file(&path);
+                if modified < cutoff && fs::remove_file(&path).is_ok() {
+                    purged_bodies.push(note.body);
                 }
             }
         }
     }
+    if !purged_bodies.is_empty() {
+        remove_orphans_of(&purged_bodies);
+    }
+}
+
+/* ---------- Unused image/attachment cleanup ----------
+   Images live in `assets/` and attachments (plus their QuickLook previews)
+   in `Attachments/`, shared by every note. A file there is "in use" if any
+   note that could still be seen again mentions its path: live notes, notes
+   sitting in Trash (they can still be restored), and templates. The check
+   is a plain text search for the file's path (as written by the app, or
+   with spaces as %20) - deliberately generous, so if in doubt a file is
+   kept rather than deleted. */
+
+/// Every file under assets/ and Attachments/ (including thumbnails/),
+/// skipping hidden files/folders (e.g. qlmanage scratch dirs). Returns
+/// (path relative to the notes folder, full path).
+fn media_files() -> Vec<(String, PathBuf)> {
+    fn walk(root: &Path, dir: &Path, out: &mut Vec<(String, PathBuf)>) {
+        let entries = match fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if name.starts_with('.') {
+                continue;
+            }
+            if path.is_dir() {
+                walk(root, &path, out);
+            } else {
+                let rel = path.strip_prefix(root).unwrap_or(&path).to_string_lossy().replace('\\', "/");
+                out.push((rel, path));
+            }
+        }
+    }
+    let root = notes_dir();
+    let mut out = Vec::new();
+    walk(&root, &root.join("assets"), &mut out);
+    walk(&root, &root.join("Attachments"), &mut out);
+    out
+}
+
+/// Bodies of every note that still counts as a reference: live notes,
+/// everything in Trash, and templates. Read straight from disk.
+fn referencing_bodies() -> Vec<String> {
+    let mut bodies: Vec<String> = read_notes_recursive(&notes_dir()).into_iter().map(|n| n.body).collect();
+    bodies.extend(read_notes_recursive(&trash_dir()).into_iter().map(|n| n.body));
+    bodies.extend(read_notes_recursive(&templates_dir()).into_iter().map(|n| n.body));
+    bodies
+}
+
+fn mentions(body: &str, rel: &str) -> bool {
+    body.contains(rel) || body.contains(&rel.replace(' ', "%20"))
+}
+
+fn is_referenced(rel: &str, bodies: &[String]) -> bool {
+    bodies.iter().any(|b| mentions(b, rel))
+}
+
+/// After notes have been permanently deleted: removes the images and
+/// attachments those notes pointed at, but only ones that no other note
+/// (live, in Trash, or a template) still points at too.
+fn remove_orphans_of(deleted_bodies: &[String]) {
+    let files = media_files();
+    let candidates: Vec<&(String, PathBuf)> = files
+        .iter()
+        .filter(|(rel, _)| deleted_bodies.iter().any(|b| mentions(b, rel)))
+        .collect();
+    if candidates.is_empty() {
+        return;
+    }
+    let bodies = referencing_bodies();
+    for (rel, path) in candidates {
+        if !is_referenced(rel, &bodies) {
+            let _ = fs::remove_file(path);
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct UnusedFile {
+    path: String,
+    size: u64,
+}
+
+/// For the "Clean Up Unused Files" menu item: lists every image or
+/// attachment that no note refers to any more. Deletes nothing.
+#[tauri::command]
+fn find_unused_files() -> Vec<UnusedFile> {
+    let bodies = referencing_bodies();
+    let mut out: Vec<UnusedFile> = media_files()
+        .into_iter()
+        .filter(|(rel, _)| !is_referenced(rel, &bodies))
+        .map(|(rel, path)| UnusedFile {
+            size: fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
+            path: rel,
+        })
+        .collect();
+    out.sort_by(|a, b| a.path.cmp(&b.path));
+    out
+}
+
+/// Deletes the files the person confirmed from `find_unused_files`.
+/// Re-checks each one first (a note may have started using it in the
+/// meantime) and refuses anything outside assets/ or Attachments/.
+/// Returns how many files were actually removed.
+#[tauri::command]
+fn delete_unused_files(paths: Vec<String>) -> Result<usize, String> {
+    let bodies = referencing_bodies();
+    let known: std::collections::HashMap<String, PathBuf> = media_files().into_iter().collect();
+    let mut removed = 0;
+    for rel in paths {
+        let path = match known.get(&rel) {
+            Some(p) => p,
+            None => continue,
+        };
+        if is_referenced(&rel, &bodies) {
+            continue;
+        }
+        if fs::remove_file(path).is_ok() {
+            removed += 1;
+        }
+    }
+    Ok(removed)
 }
 
 #[tauri::command]
@@ -536,8 +663,128 @@ fn restore_note(id: String) -> Result<(), String> {
 fn purge_note(id: String) -> Result<(), String> {
     let path = trash_dir().join(format!("{}.md", id));
     if path.exists() {
+        let body = fs::read_to_string(&path).map(|raw| parse_note_file(&raw).1).unwrap_or_default();
         fs::remove_file(&path).map_err(|e| e.to_string())?;
+        remove_orphans_of(&[body]);
     }
+    Ok(())
+}
+
+/// Reads a single note straight from disk (None if it no longer exists).
+/// Used by the frontend to check what actually changed when the folder
+/// watcher reports an outside edit.
+#[tauri::command]
+fn read_note(id: String) -> Option<Note> {
+    let dir = notes_dir();
+    let path = dir.join(format!("{}.md", id));
+    let raw = fs::read_to_string(&path).ok()?;
+    let (title, body, tags, pinned, color, meeting_date) = parse_note_file(&raw);
+    let folder = path
+        .parent()
+        .filter(|p| *p != dir)
+        .map(|p| p.strip_prefix(&dir).unwrap_or(p).to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
+    let updated_at = fs::metadata(&path)
+        .and_then(|m| m.modified())
+        .map(|t| t.duration_since(UNIX_EPOCH).map(|d| d.as_millis() as f64).unwrap_or(0.0))
+        .unwrap_or(0.0);
+    Some(Note { id, title, body, tags, pinned, color, folder, updated_at, meeting_date })
+}
+
+/* ---------- Watching the notes folder for outside changes ----------
+   The same .md files are edited by the iPhone app and by other Macs via
+   iCloud, so the folder is watched (FSEvents, via the `notify` crate).
+   Bursts of file events are batched (quiet for 500ms) and sent to the
+   frontend as a "notes-changed" event listing the note ids touched. The
+   frontend decides what's genuinely new: it compares against what it
+   last saved/loaded itself, so the app's own saves are ignored there. */
+
+struct WatchState(Mutex<Option<notify::RecommendedWatcher>>);
+
+#[derive(Serialize, Clone)]
+struct NotesChanged {
+    ids: Vec<String>,
+    /// Something in .trash changed (e.g. another device deleted a note).
+    trash: bool,
+}
+
+/// Maps an absolute path from a file event to a note id, or None if it
+/// isn't a note (not .md, or inside a hidden/reserved folder).
+fn note_id_for_event_path(roots: &[PathBuf], path: &Path) -> Option<String> {
+    if path.extension().and_then(|e| e.to_str()) != Some("md") {
+        return None;
+    }
+    let rel = roots.iter().find_map(|r| path.strip_prefix(r).ok())?;
+    for comp in rel.components() {
+        let s = comp.as_os_str().to_string_lossy();
+        if s.starts_with('.') || s == "assets" {
+            return None;
+        }
+    }
+    Some(rel.with_extension("").to_string_lossy().replace('\\', "/"))
+}
+
+fn in_trash(roots: &[PathBuf], path: &Path) -> bool {
+    roots.iter().any(|r| path.starts_with(r.join(".trash")))
+}
+
+/// (Re)starts watching the current notes folder. Called by the frontend
+/// once notes have loaded, and again after the notes folder is changed in
+/// Preferences - the previous watcher is dropped, which stops it.
+#[tauri::command]
+fn watch_notes_dir(app: tauri::AppHandle, state: tauri::State<WatchState>) -> Result<(), String> {
+    use notify::{RecursiveMode, Watcher};
+    use std::collections::BTreeSet;
+    use std::sync::mpsc;
+
+    let dir = notes_dir();
+    // Events arrive with fully-resolved paths, so match against both the
+    // configured path and its canonical form (in case of symlinks).
+    let mut roots = vec![dir.clone()];
+    if let Ok(canon) = fs::canonicalize(&dir) {
+        if canon != dir {
+            roots.push(canon);
+        }
+    }
+
+    let (tx, rx) = mpsc::channel::<notify::Result<notify::Event>>();
+    let mut watcher = notify::recommended_watcher(tx).map_err(|e| e.to_string())?;
+    watcher.watch(&dir, RecursiveMode::Recursive).map_err(|e| e.to_string())?;
+
+    std::thread::spawn(move || {
+        // Ends when the watcher (and so the sending side) is dropped.
+        while let Ok(first) = rx.recv() {
+            let mut ids = BTreeSet::new();
+            let mut trash = false;
+            let mut take = |res: notify::Result<notify::Event>| {
+                if let Ok(ev) = res {
+                    if ev.kind.is_access() {
+                        return;
+                    }
+                    for p in &ev.paths {
+                        if in_trash(&roots, p) {
+                            trash = true;
+                        } else if let Some(id) = note_id_for_event_path(&roots, p) {
+                            ids.insert(id);
+                        }
+                    }
+                }
+            };
+            take(first);
+            loop {
+                match rx.recv_timeout(Duration::from_millis(500)) {
+                    Ok(more) => take(more),
+                    Err(mpsc::RecvTimeoutError::Timeout) => break,
+                    Err(mpsc::RecvTimeoutError::Disconnected) => return,
+                }
+            }
+            if !ids.is_empty() || trash {
+                let _ = app.emit("notes-changed", NotesChanged { ids: ids.into_iter().collect(), trash });
+            }
+        }
+    });
+
+    *state.0.lock().unwrap() = Some(watcher);
     Ok(())
 }
 
@@ -859,6 +1106,7 @@ fn main() {
             debug_log("=== app setup() ran (process started) ===");
             app.manage(ClipState(Mutex::new(None)));
             app.manage(UpdateState(Mutex::new(None)));
+            app.manage(WatchState(Mutex::new(None)));
             purge_old_trash();
 
             let handle = app.handle().clone();
@@ -890,6 +1138,8 @@ fn main() {
                 .text("new_note", "New Note")
                 .separator()
                 .text("show_in_finder", "Show Notes in Finder")
+                .separator()
+                .text("cleanup_unused", "Clean Up Unused Files…")
                 .build()?;
 
             let edit_menu = SubmenuBuilder::new(app, "Edit")
@@ -931,6 +1181,9 @@ fn main() {
                 "new_note" => {
                     let _ = handle3.emit("menu-new-note", ());
                 }
+                "cleanup_unused" => {
+                    let _ = handle3.emit("menu-cleanup-unused", ());
+                }
                 "show_in_finder" => {
                     let _ = std::process::Command::new("open").arg(notes_dir()).spawn();
                 }
@@ -952,6 +1205,10 @@ fn main() {
             delete_note,
             restore_note,
             purge_note,
+            read_note,
+            watch_notes_dir,
+            find_unused_files,
+            delete_unused_files,
             reveal_folder,
             open_external,
             load_settings,
